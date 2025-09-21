@@ -3,7 +3,9 @@ module IDVectors
 export next_id,
     alloc_id!,
     free_id!,
-    IncIDSet
+    IncIDSet,
+    IncNoWrapIDSet,
+    GenIDSet
 
 public reset!,
     assert_invariants

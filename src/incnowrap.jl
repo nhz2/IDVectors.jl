@@ -19,6 +19,7 @@ end
 
 function next_id(s::IncNoWrapIDSet)::Int64
     iszero(s.next_id) && throw(OverflowError("next_id would wraparound"))
+    s.next_id
 end
 
 function alloc_id!(s::IncNoWrapIDSet)::Int64

@@ -3,7 +3,7 @@
 const MIN_FREE_QUEUE_LEN = 2^16-1
 
 """
-The 31 most significant bits of an id is the generation.
+The 32 most significant bits of an id is the generation. Even generations are active, odd generations are inactive.
 The 32 least significant bits of an id is an index.
 id's are never zero.
 IDs may wrap around after about 2^47 pairs of alloc and free.
@@ -32,7 +32,8 @@ function assert_invariants(s::GenIDSet)
     @assert s.n_active ≤ s.gens_len
     n_inactive = count(isodd, view(s.gens, 1:min(s.gens_len, length(s.gens))))
     @assert n_inactive == s.gens_len - s.n_active
-    @assert length(s.free_queue) > n_inactive
+    # The free queue should always have at least one free spot unless it's not allocated yet
+    @assert length(s.free_queue) == 0 || length(s.free_queue) > n_inactive
     @assert length(s.gens) ≤ typemax(UInt32)
     for i in s.gens_len+1:length(s.gens)
         @assert iszero(s.gens[i])
@@ -86,10 +87,9 @@ function alloc_id!(s::GenIDSet)::Int64
         if gens_len == typemax(UInt32)
             throw(OverflowError("next_id would wraparound"))
         end
-        gens_len += UInt32(1)
-        s.gens_len = gens_len
-        s.n_active = gens_len
-        Int64(gens_len)
+        s.gens_len += UInt32(1)
+        s.n_active += UInt32(1)
+        Int64(s.gens_len)
     else
         # Pick a slot off the free queue
         i = s.free_read_head
@@ -106,52 +106,68 @@ function alloc_id!(s::GenIDSet)::Int64
     end
 end
 
+# Expand the size of s.gens to at least n
+function _grow_gens!(s::GenIDSet, n::Int64)
+    old_gens = s.gens
+    if n ≤ length(old_gens)
+        return
+    end
+    @assert n ∈ length(old_gens) + 1 : Int64(typemax(UInt32))
+    new_size = Int(min(overallocation(n), Int64(typemax(UInt32))))
+    new_gens = fill!(Memory{UInt32}(undef, new_size), UInt32(0))
+    unsafe_copyto!(new_gens, 1, old_gens, 1, length(old_gens))
+    s.gens = new_gens
+    return
+end
+
+# Expand the size of s.free_queue to be able to store at least n free slots
+function _grow_free_queue!(s::GenIDSet, n::Int64)
+    old_free_queue = s.free_queue
+    old_queue_size = length(old_free_queue)
+    if n < old_queue_size
+        return
+    end
+    rh = s.free_read_head
+    wh = s.free_write_head
+    @assert n ∈ old_queue_size : Int64(typemax(UInt32))
+    new_queue_size = Int(min(overallocation(n+1), Int64(2)^32))
+    new_free_queue = fill!(Memory{UInt32}(undef, new_queue_size), UInt32(0))
+    if wh == rh
+        # queue is empty
+        s.free_write_head = UInt32(0)
+    elseif wh > rh
+        unsafe_copyto!(new_free_queue, 1, old_free_queue, Int(rh)+1, Int(wh-rh))
+        s.free_write_head = wh-rh
+    else
+        nr_data = old_queue_size%UInt32 - rh
+        unsafe_copyto!(new_free_queue, 1, old_free_queue, Int(rh)+1, Int(nr_data))
+        unsafe_copyto!(new_free_queue, Int(nr_data)+1, old_free_queue, 1, wh)
+        s.free_write_head = nr_data + wh
+    end
+    s.free_queue = new_free_queue
+    s.free_read_head = UInt32(0)
+    return
+end
+
 function free_id!(s::GenIDSet, id::Int64)::GenIDSet
     if id ∉ s
         throw(KeyError(id))
     end
     idx = id%UInt32
     gen = (id>>>32)%UInt32
-    # Do the memory allocations first to avoid corrupting s incase that errors
-    if idx > length(s.gens)
-        @assert iszero(gen)
-        # need to allocate space to store the gen
-        new_size = Int(min(overallocation(Int64(idx)), Int64(typemax(UInt32))))
-        old_gens = s.gens
-        new_gens = fill!(Memory{UInt32}(undef, new_size), UInt32(0))
-        unsafe_copyto!(new_gens, 1, old_gens, 1, length(s.gens))
-        # This is safe, because even if the free queue allocation fails, the gens will be padded with zeros
-        s.gens = new_gens
-    end
+    # Do the memory allocations first to avoid corrupting s in case that errors
+    _grow_gens!(s, Int64(idx))
+    n_inactive = s.gens_len - s.n_active
+    _grow_free_queue!(s, max(n_inactive + Int64(1), MIN_FREE_QUEUE_LEN))
+    # We made it past the scary allocation parts!
     # next push idx to the free queue
-    if isempty(s.free_queue)
-        # initialize
-        s.free_queue = fill!(Memory{UInt32}(undef, MIN_FREE_QUEUE_LEN + 1), UInt32(0))
-        s.free_read_head = UInt32(0)
-        s.free_write_head = UInt32(0)
-    end
     i = s.free_write_head
     s.free_queue[1 + i] = idx
     i += UInt32(1)
     if i ≥ length(s.free_queue)
         i = UInt32(0)
     end
-    if i == s.free_read_head
-        # free queue is overfull allocate more space
-        old_free_queue = s.free_queue
-        old_queue_size = length(old_free_queue)
-        @assert old_queue_size < Int64(2)^32 # There are at most 2^32-1 slots
-        new_queue_size = Int(min(overallocation(Int64(old_queue_size)), Int64(2)^32))
-        new_free_queue = fill!(Memory{UInt32}(undef, new_queue_size), UInt32(0))
-        nr_data = old_queue_size%UInt32 - i + UInt32(1)
-        unsafe_copyto!(new_free_queue, 1, old_free_queue, Int(i), Int(nr_data))
-        unsafe_copyto!(new_free_queue, Int(nr_data) + 1, old_free_queue, 1, old_queue_size - Int(nr_data))
-        s.free_read_head = UInt32(0)
-        s.free_write_head = old_queue_size%UInt32
-    else
-        s.free_write_head = i
-    end
-    # We made it past the scary allocation parts!
+    s.free_write_head = i
     # finally update gens
     @assert s.gens[idx] == gen
     @assert iseven(gen)
@@ -214,18 +230,33 @@ function Base.iterate(s::GenIDSet, state::NamedTuple)
         end
     end
 end
-Base.iterate(s::GenIDSet) = iterate(t, (; curidx=Int64(0)))
+Base.iterate(s::GenIDSet) = iterate(s, (; curidx=Int64(0)))
 
 function Base.empty!(s::GenIDSet)::GenIDSet
     n = s.gens_len
-    sizehint!(s, n)
-    for i in 1:s.n_active
-        free_id!(s, first(s))
+    _grow_gens!(s, Int64(n))
+    _grow_free_queue!(s, Int64(n))
+    for idx in UInt32(1):n
+        gen = s.gens[idx]
+        if iseven(gen)
+            i = s.free_write_head
+            s.free_queue[1 + i] = idx
+            i += UInt32(1)
+            if i ≥ length(s.free_queue)
+                i = UInt32(0)
+            end
+            s.free_write_head = i
+            s.gens[idx] = gen + UInt32(1)
+            s.n_active -= UInt32(1)
+        end
     end
     s
 end
 
 function Base.sizehint!(s::GenIDSet, n; kwargs...)::GenIDSet
-    # TODO
+    _n = clamp(n, 0, Int64(typemax(UInt32)))%Int64
+    _n = min(_n + MIN_FREE_QUEUE_LEN, Int64(typemax(UInt32)))
+    _grow_gens!(s, _n)
+    _grow_free_queue!(s, _n)
     s
 end
