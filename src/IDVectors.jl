@@ -5,7 +5,9 @@ export next_id,
     free_id!,
     IncIDSet,
     IncNoWrapIDSet,
-    GenIDSet
+    GenIDSet,
+    GenNoWrapIDSet,
+    DynIDSet
 
 public reset!,
     assert_invariants
@@ -73,5 +75,7 @@ include("utils.jl")
 include("inc.jl")
 include("incnowrap.jl")
 include("gen.jl")
+include("gennowrap.jl")
+include("dyn.jl")
 
 end

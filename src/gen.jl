@@ -247,15 +247,15 @@ function Base.empty!(s::GenIDSet)::GenIDSet
             end
             s.free_write_head = i
             s.gens[idx] = gen + UInt32(1)
-            s.n_active -= UInt32(1)
         end
     end
+    s.n_active = UInt32(0)
     s
 end
 
 function Base.sizehint!(s::GenIDSet, n; kwargs...)::GenIDSet
-    _n = clamp(n, 0, Int64(typemax(UInt32)))%Int64
-    _n = min(_n + MIN_FREE_QUEUE_LEN, Int64(typemax(UInt32)))
+    _n = clamp(n, 0, Int64(typemax(UInt32)) - MIN_FREE_QUEUE_LEN)%Int64
+    _n = _n + MIN_FREE_QUEUE_LEN
     _grow_gens!(s, _n)
     _grow_free_queue!(s, _n)
     s
