@@ -19,6 +19,10 @@ using Test
     @test id1 ∈ s
     @test issetequal(collect(s), [id1, id2])
     @test length(s) == 2
+    # test copy
+    empty!(copy(s))
+    @test !isempty(s)
+    @test collect(copy(s)) == collect(s)
     free_id!(s, id1)
     @test id1 ∉ s
     @test id2 ∈ s
@@ -87,6 +91,10 @@ end
     @test id1 ∈ s
     @test issetequal(collect(s), [id1, id2])
     @test length(s) == 2
+    # test copy
+    empty!(copy(s))
+    @test !isempty(s)
+    @test collect(copy(s)) == collect(s)
     free_id!(s, id1)
     IDVectors.assert_invariants(s)
     @test id1 ∉ s
@@ -265,6 +273,10 @@ end
     @test id1 ∈ s
     @test issetequal(collect(s), [id1, id2])
     @test length(s) == 2
+    # test copy
+    empty!(copy(s))
+    @test !isempty(s)
+    @test collect(copy(s)) == collect(s)
     free_id!(s, id1)
     IDVectors.assert_invariants(s)
     @test id1 ∉ s
@@ -375,6 +387,10 @@ end
     @test id1 ∈ s
     @test issetequal(collect(s), [id1, id2])
     @test length(s) == 2
+    # test copy
+    empty!(copy(s))
+    @test !isempty(s)
+    @test collect(copy(s)) == collect(s)
     free_id!(s, id1)
     IDVectors.assert_invariants(s)
     @test id1 ∉ s

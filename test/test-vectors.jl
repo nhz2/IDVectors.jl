@@ -1,9 +1,14 @@
 using IDVectors
-using IDVectors: assert_invariants
+using IDVectors: assert_invariants, reset!
 using Test
 
-@testset "IncIDVector" begin
-    s = IncIDVector()
+@testset "$idvector" for idvector in [
+        IncIDVector,
+        GenIDVector,
+        GenNoWrapIDVector,
+        DynIDVector,
+    ]
+    s = idvector()
     assert_invariants(s)
     id1 = next_id(s)
     @test id1 != 0
@@ -21,6 +26,12 @@ using Test
     @test alloc_id!(s) == id3
     assert_invariants(s)
     @test id1 != id3
+
+    q = copy(s)
+    @test reset!(q) === q
+    @test isempty(q)
+    assert_invariants(q)
+    @test next_id(q) == id1
 
     @testset "ways to delete" begin
         v = copy(s)
@@ -126,7 +137,7 @@ using Test
             assert_invariants(v)
         end
         @testset "keepat!" begin
-            init = IncIDVector()
+            init = idvector()
             ids = [alloc_id!(init) for i in 1:5]
 
             # Test boolean mask
@@ -179,14 +190,14 @@ using Test
             assert_invariants(v)
         end
         @testset "filter!" begin
-            v = IncIDVector()
+            v = idvector()
             ids = [alloc_id!(v) for i in 1:5]
             @test filter!(iseven, v) === v
             @test v == filter!(iseven, ids)
             assert_invariants(v)
         end
         @testset "swap_deleteat!" begin
-            init = IncIDVector()
+            init = idvector()
             ids = [alloc_id!(init) for i in 1:5]  # ids[1] through ids[5]
             
             # Test single index deletion
@@ -272,7 +283,7 @@ using Test
         @testset "permute!" begin
             # permute! doesn't check if the input is valid
             #  So don't test invalid permutations
-            v = IncIDVector()
+            v = idvector()
             ids = [alloc_id!(v) for i in 1:5]  # ids[1] through ids[5]
 
             perm = [2, 4, 3, 1, 5]
@@ -285,7 +296,7 @@ using Test
         @testset "invpermute!" begin
             # invpermute! doesn't check if the input is valid
             #  So don't test invalid permutations
-            v = IncIDVector()
+            v = idvector()
             ids = [alloc_id!(v) for i in 1:5]  # ids[1] through ids[5]
 
             perm = [2, 4, 3, 1, 5]
@@ -298,7 +309,7 @@ using Test
         @testset "swap!" begin
             # Swap from UniqueVectors.jl
             "`swap!(uv::UniqueVector, to::Int, from::Int) -> uv` interchange/swap the values on the indices `to` and `from` in the `UniqueVector`"
-            v = IncIDVector()
+            v = idvector()
             ids = [alloc_id!(v) for i in 1:5]  # ids[1] through ids[5]
             @test swap!(v, 4, 4) === v
             @test_throws BoundsError swap!(v, 6, 6)
@@ -314,7 +325,7 @@ using Test
     end
     @testset "accelerated ways to find" begin
         @testset "in" begin
-            v = IncIDVector()
+            v = idvector()
             ids = [alloc_id!(v) for i in 1:5]  # ids[1] through ids[5]
             @test ids[1] ∈ v
             @test Int64(0) ∉ v
@@ -325,7 +336,7 @@ using Test
             @test ids[2] ∈ v
         end
         @testset "count" begin
-            v = IncIDVector()
+            v = idvector()
             ids = [alloc_id!(v) for i in 1:5]  # ids[1] through ids[5]
             @test count(isequal(ids[1]), v) == 1
             @test count(isequal(Int64(0)), v) == 0
@@ -336,7 +347,7 @@ using Test
             @test count(isequal(ids[2]), v) == 1
         end
         @testset "id2idx" begin
-            v = IncIDVector()
+            v = idvector()
             ids = [alloc_id!(v) for i in 1:5]  # ids[1] through ids[5]
             @test id2idx(v, ids[1]) === 1
             free_id!(v, ids[1])
@@ -344,7 +355,7 @@ using Test
             @test id2idx(v, ids[5]) === 1
         end
         @testset "findfirst" begin
-            v = IncIDVector()
+            v = idvector()
             ids = [alloc_id!(v) for i in 1:5]  # ids[1] through ids[5]
             @test findfirst(isequal(ids[1]), v) === 1
             free_id!(v, ids[1])
@@ -352,7 +363,7 @@ using Test
             @test findfirst(isequal(ids[5]), v) === 1
         end
         @testset "findlast" begin
-            v = IncIDVector()
+            v = idvector()
             ids = [alloc_id!(v) for i in 1:5]  # ids[1] through ids[5]
             @test findlast(isequal(ids[1]), v) === 1
             free_id!(v, ids[1])
@@ -360,7 +371,7 @@ using Test
             @test findlast(isequal(ids[5]), v) === 1
         end
         @testset "getindex" begin
-            v = IncIDVector()
+            v = idvector()
             ids = [alloc_id!(v) for i in 1:5]  # ids[1] through ids[5]
             @test v[1] === ids[1]
             free_id!(v, ids[1])
@@ -369,7 +380,7 @@ using Test
             @test v[1] === ids[5]
         end
         @testset "indexin" begin
-            v = IncIDVector()
+            v = idvector()
             ids = [alloc_id!(v) for i in 1:5]
             free_id!(v, ids[1])
             alloc_id!(v)
@@ -380,7 +391,7 @@ using Test
             @test indexin([ids[1],ids[3],ids[5]], v) == indexin([ids[1],ids[3],ids[5]], _ids)
         end
         @testset "findnext" begin
-            v = IncIDVector()
+            v = idvector()
             ids = [alloc_id!(v) for i in 1:5]  # ids[1] through ids[5]
             @test findnext(isequal(ids[1]), v, 1) === 1
             @test findnext(isequal(ids[1]), v, 2) === nothing
@@ -390,7 +401,7 @@ using Test
             @test findnext(isequal(ids[5]), v, 2) === nothing
         end
         @testset "findprev" begin
-            v = IncIDVector()
+            v = idvector()
             ids = [alloc_id!(v) for i in 1:5]  # ids[1] through ids[5]
             @test findprev(isequal(ids[3]), v, 1) === nothing
             @test findprev(isequal(ids[3]), v, 3) === 3
@@ -400,7 +411,7 @@ using Test
             @test findprev(isequal(ids[5]), v, 0) === nothing
         end
         @testset "findall" begin
-            v = IncIDVector()
+            v = idvector()
             ids = [alloc_id!(v) for i in 1:5]  # ids[1] through ids[5]
             @test findall(isequal(ids[1]), v) == [1]
             free_id!(v, ids[1])
@@ -409,18 +420,18 @@ using Test
         end
     end
     @testset "unique" begin
-        v = IncIDVector()
+        v = idvector()
         ids = [alloc_id!(v) for i in 1:5]  # ids[1] through ids[5]
         @test allunique(v)
         @test unique(v) !== v
         @test unique(v) == v
-        @test unique(v) isa IncIDVector
+        @test unique(v) isa idvector
         @test unique!(v) === v
         @test v == ids
     end
     @testset "sizehint" begin
         for hint in [-10, -1, 0, 1, 2, 3, 4, 5, 6, 7, 10, 1000, 10000]
-            v = IncIDVector()
+            v = idvector()
             sizehint!(v, hint)
             assert_invariants(v)
             ids = [alloc_id!(v) for i in 1:5]  # ids[1] through ids[5]

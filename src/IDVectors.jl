@@ -10,7 +10,10 @@ export next_id,
     GenIDSet,
     GenNoWrapIDSet,
     DynIDSet,
-    IncIDVector
+    IncIDVector,
+    GenIDVector,
+    GenNoWrapIDVector,
+    DynIDVector
 
 public reset!,
     assert_invariants
@@ -81,19 +84,6 @@ function assert_invariants end
 A vector of unique ids with accelerated mapping from id to index.
 """
 abstract type IDVector <: AbstractVector{Int64} end
-
-function alloc_id!(s::IDVector)::Int64
-    idx = length(s) + 1
-    if idx > length(s.ids)
-        new_size = Int(overallocation(Int64(idx)))
-        new_ids = Memory{Int64}(undef, new_size)
-        unsafe_copyto!(new_ids, 1, s.ids, 1, length(s.ids))
-        s.ids = new_ids
-    end
-    id = _push_id2idx!(s, idx)
-    s.ids[idx] = id
-    id
-end
 
 function free_id!(s::IDVector, id::Int64)
     if id ∉ s
@@ -352,6 +342,7 @@ function assert_invariants(s::IDVector)
         @assert findfirst(isequal(id), s) == idx
         @assert id ∈ s
     end
+    _assert_invariants_id2idx!(s)
     nothing
 end
 

@@ -11,6 +11,17 @@ function IncIDSet()
     IncIDSet(Set{Int64}(), Int64(1))
 end
 
+function reset!(s::IncIDSet)::IncIDSet
+    s.next_id = Int64(1)
+    empty!(s.used_ids)
+    sizehint!(s.used_ids, 0)
+    s
+end
+
+function Base.copy(s::IncIDSet)
+    IncIDSet(copy(s.used_ids), s.next_id)
+end
+
 function assert_invariants(s::IncIDSet)
     @assert !iszero(s.next_id)
     @assert s.next_id ∉ s.used_ids
@@ -51,13 +62,6 @@ function free_id!(s::IncIDSet, id::Int64)::IncIDSet
     s
 end
 
-function reset!(s::IncIDSet)::IncIDSet
-    s.next_id = Int64(1)
-    empty!(s.used_ids)
-    sizehint!(s.used_ids, 0)
-    s
-end
-
 # Functions from Base
 
 function Base.in(id::Int64, s::IncIDSet)::Bool
@@ -94,6 +98,18 @@ function IncIDVector()
     IncIDVector(Memory{Int64}(undef,0), Dict{Int64, Int}(), Int64(1))
 end
 
+function reset!(s::IncIDVector)::IncIDVector
+    s.next_id = Int64(1)
+    empty!(s.id2idx)
+    sizehint!(s.id2idx, 0)
+    s.ids = Memory{Int64}(undef, 0)
+    s
+end
+
+function Base.copy(s::IncIDVector)
+    IncIDVector(copy(s.ids), copy(s.id2idx), s.next_id)
+end
+
 function _assert_invariants_id2idx!(s::IncIDVector)
     nothing
 end
@@ -102,7 +118,9 @@ function next_id(s::IncIDVector)::Int64
     s.next_id
 end
 
-function _push_id2idx!(s::IncIDVector, idx::Int)::Int64
+function alloc_id!(s::IncIDVector)::Int64
+    idx = length(s) + 1
+    _grow_field!(s, Int64(idx), :ids)
     id = s.next_id
     s.id2idx[id] = idx
     next_id = id
@@ -118,6 +136,7 @@ function _push_id2idx!(s::IncIDVector, idx::Int)::Int64
         end
     end
     s.next_id = next_id
+    s.ids[idx] = id
     id
 end
 
@@ -128,18 +147,6 @@ end
 function _set_id2idx!(s::IncIDVector, idx::Int, id::Int64)::Nothing
     s.id2idx[id] = idx
     nothing
-end
-
-function reset!(s::IncIDVector)::Nothing
-    s.next_id = Int64(1)
-    empty!(s.id2idx)
-    sizehint!(s.id2idx, 0)
-    s.ids = Memory{Int64}(undef, 0)
-    s
-end
-
-function Base.copy(s::IncIDVector)
-    IncIDVector(copy(s.ids), copy(s.id2idx), s.next_id)
 end
 
 function Base.size(s::IncIDVector)

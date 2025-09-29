@@ -6,5 +6,4 @@
 
 ## TODO
 
-Support for `copy`
-Nice printing
+Nice set printing
