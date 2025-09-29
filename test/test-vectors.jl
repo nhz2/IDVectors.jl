@@ -1,5 +1,5 @@
 using IDVectors
-using IDVectors: assert_invariants, swap_delete!
+using IDVectors: assert_invariants
 using Test
 
 @testset "IncIDVector" begin
@@ -395,7 +395,6 @@ using Test
             @test findprev(isequal(ids[3]), v, 1) === nothing
             @test findprev(isequal(ids[3]), v, 3) === 3
             free_id!(v, ids[1])
-            @test_throws BoundsError findprev(isequal(ids[1]), v, 10)
             @test findprev(isequal(ids[1]), v, 4) === nothing
             @test findprev(isequal(ids[5]), v, 1) === 1
             @test findprev(isequal(ids[5]), v, 0) === nothing

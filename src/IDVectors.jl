@@ -367,6 +367,47 @@ function Base.findfirst(p::Base.Fix2{typeof(isequal), Int64}, s::IDVector)
         nothing
     end
 end
+function Base.findlast(p::Base.Fix2{typeof(isequal), Int64}, s::IDVector)
+    if p.x ∈ s
+        id2idx(s, p.x)
+    else
+        nothing
+    end
+end
+function Base.indexin(a, s::IDVector)
+    Union{Nothing, Int}[findfirst(isequal(id), s) for id in a]
+end
+function Base.findnext(p::Base.Fix2{typeof(isequal), Int64}, s::IDVector, i::Integer)
+    if p.x ∈ s
+        idx = id2idx(s, p.x)
+        if idx < i
+            nothing
+        else
+            idx
+        end
+    else
+        nothing
+    end
+end
+function Base.findprev(p::Base.Fix2{typeof(isequal), Int64}, s::IDVector, i::Integer)
+    if p.x ∈ s
+        idx = id2idx(s, p.x)
+        if idx > i
+            nothing
+        else
+            idx
+        end
+    else
+        nothing
+    end
+end
+function Base.findall(p::Base.Fix2{typeof(isequal), Int64}, s::IDVector)
+    if p.x ∈ s
+        Int[id2idx(s, p.x)]
+    else
+        Int[]
+    end
+end
 
 function Base.count(p::Base.Fix2{typeof(isequal), Int64}, s::IDVector)
     Int(p.x ∈ s)
