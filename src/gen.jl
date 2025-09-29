@@ -155,7 +155,7 @@ function _grow_free_queue!(s, n::Int64)
     return
 end
 
-function free_id!(s::GenIDSet, id::Int64)::GenIDSet
+function free_id!(s::GenIDSet, id::Int64)::Nothing
     if id ∉ s
         throw(KeyError(id))
     end
@@ -180,7 +180,7 @@ function free_id!(s::GenIDSet, id::Int64)::GenIDSet
     s.gens[idx] = gen + UInt32(1)
     @assert !iszero(s.n_active)
     s.n_active -= UInt32(1)
-    s
+    nothing
 end
 
 # Functions from Base

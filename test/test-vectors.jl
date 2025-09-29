@@ -50,19 +50,21 @@ using Test
         @test isempty(v)
 
         v = copy(s)
-        @test free_id!(v, id1) === v
+        @test free_id!(v, id1) === 1
         assert_invariants(v)
         @test v == [id3, id2]
         @test_throws KeyError free_id!(v, id1)
         @test_throws KeyError free_id!(v, Int64(0))
+        @test free_id!(v, id2) === 2
+        @test free_id!(v, id3) === 1
 
         v = copy(s)
-        @test free_id!(v, id3) === v
+        @test free_id!(v, id3) === 3
         assert_invariants(v)
         @test v == [id1, id2]
 
         v = copy(s)
-        @test free_id!(v, id2) === v
+        @test free_id!(v, id2) === 2
         assert_invariants(v)
         @test v == [id1, id3]
 

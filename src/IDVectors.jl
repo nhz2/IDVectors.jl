@@ -55,9 +55,10 @@ Return the allocated id, this key is guaranteed to not
 function alloc_id! end
 
 """
-    free_id!(s::Union{IDSet, IDVector}, id::Int64) -> s
+    free_id!(s::IDSet, id::Int64) -> nothing
+    free_id!(s::IDVector, id::Int64) -> idx
 
-Remove `id` from `s` and return `s`.
+Remove `id` from `s` and return its previous index if `s isa IDVector`.
 Throw a `KeyError` if `id` isn't in `s`.
 """
 function free_id! end
@@ -97,8 +98,8 @@ function free_id!(s::IDVector, id::Int64)
             s.ids[idx] = idend
             _set_id2idx!(s, idx, idend)
         end
+        idx
     end
-    s
 end
 
 function Base.pop!(s::IDVector)
@@ -282,14 +283,15 @@ function swap_deleteat!(a::AbstractVector, inds::AbstractVector)
 end
 
 # Swap from UniqueVectors.jl
+
 """
     swap!(s::AbstractVector, a::Int, b::Int) -> s
 
 Swap the positions of ids at index a and b
 """
-function swap!(s::IDVector, a::Int, b::Int)
-    checkbounds(s, a)
-    checkbounds(s, b)
+Base.@propagate_inbounds function swap!(s::IDVector, a::Int, b::Int)
+    @boundscheck checkbounds(s, a)
+    @boundscheck checkbounds(s, b)
     if a != b
         ida = s.ids[a]
         idb = s.ids[b]
@@ -300,9 +302,9 @@ function swap!(s::IDVector, a::Int, b::Int)
     end
     s
 end
-function swap!(s::AbstractVector, a::Int, b::Int)
-    checkbounds(s, a)
-    checkbounds(s, b)
+Base.@propagate_inbounds function swap!(s::AbstractVector, a::Int, b::Int)
+    @boundscheck checkbounds(s, a)
+    @boundscheck checkbounds(s, b)
     if a != b
         va = s[a]
         vb = s[b]

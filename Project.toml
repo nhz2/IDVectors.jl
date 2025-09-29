@@ -3,7 +3,14 @@ uuid = "164603a6-17c3-52df-9117-5286459079d8"
 authors = ["Nathan Zimmerberg <nzimmerberg@gmail.com>"]
 version = "0.1.0"
 
+[weakdeps]
+AxisKeys = "94b1ba4f-4ee9-5380-92f1-94cde586c3c5"
+
+[extensions]
+AxisKeysExt = "AxisKeys"
+
 [compat]
+AxisKeys = "0.2"
 julia = "1.11"
 
 [workspace]

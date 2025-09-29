@@ -102,13 +102,13 @@ function alloc_id!(s::DynIDSet)::Int64
     id
 end
 
-function free_id!(s::DynIDSet, id::Int64)::DynIDSet
+function free_id!(s::DynIDSet, id::Int64)::Nothing
     if id ∉ s
         throw(KeyError(id))
     end
     s.slots[begin + (id & s.mask)] = Int64(0)
     s.n_active -= Int64(1)
-    s
+    nothing
 end
 
 # Functions from Base

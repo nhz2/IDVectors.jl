@@ -53,13 +53,13 @@ function alloc_id!(s::IncIDSet)::Int64
     id
 end
 
-function free_id!(s::IncIDSet, id::Int64)::IncIDSet
+function free_id!(s::IncIDSet, id::Int64)::Nothing
     if id ∉ s
         throw(KeyError(id))
     else
         pop!(s.used_ids, id)
     end
-    s
+    nothing
 end
 
 # Functions from Base

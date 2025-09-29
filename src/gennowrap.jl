@@ -127,7 +127,7 @@ function _grow_free_stack!(s::GenNoWrapIDSet, n::Int64)
     return
 end
 
-function free_id!(s::GenNoWrapIDSet, id::Int64)::GenNoWrapIDSet
+function free_id!(s::GenNoWrapIDSet, id::Int64)::Nothing
     if id ∉ s
         throw(KeyError(id))
     end
@@ -151,7 +151,7 @@ function free_id!(s::GenNoWrapIDSet, id::Int64)::GenNoWrapIDSet
     s.gens[idx] = new_gen
     @assert !iszero(s.n_active)
     s.n_active -= UInt32(1)
-    s
+    nothing
 end
 
 # Functions from Base
