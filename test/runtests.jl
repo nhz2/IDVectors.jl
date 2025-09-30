@@ -1,4 +1,4 @@
-using IDVectors
+using UniqueIDs
 using Test
 
 #=

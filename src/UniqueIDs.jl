@@ -1,4 +1,4 @@
-module IDVectors
+module UniqueIDs
 
 export next_id,
     alloc_id!,
@@ -6,16 +6,16 @@ export next_id,
     id2idx,
     swap_deleteat!,
     swap!,
-    IncIDVector,
-    GenIDVector,
-    GenNoWrapIDVector,
-    DynIDVector
+    Inc,
+    Gen,
+    GenNoWrap,
+    Dyn
 
 public reset!,
     assert_invariants
 
 """
-    next_id(s::IDVector)::Int64
+    next_id(s::UniqueID)::Int64
 
 Return the next id that would be allocated if `alloc_id!`
 was called instead. This id is not in `s`, though due to
@@ -24,14 +24,14 @@ wrap around it may have been allocated and freed in the past.
 function next_id end
 
 """
-    alloc_id!(s::IDVector)::Int64
+    alloc_id!(s::UniqueID)::Int64
 
 Return the allocated id, this key is guaranteed to not be zero.
 """
 function alloc_id! end
 
 """
-    free_id!(s::IDVector, id::Int64) -> idx
+    free_id!(s::UniqueID, id::Int64) -> idx
 
 Remove `id` from `s` and return its previous index.
 Throw a `KeyError` if `id` isn't in `s`.
@@ -39,14 +39,14 @@ Throw a `KeyError` if `id` isn't in `s`.
 function free_id! end
 
 """
-    reset!(s::IDVector) -> s
+    reset!(s::UniqueID) -> s
 
 Reset `s`, emptying it and also removing memory of past allocated ids.
 """
 function reset! end
 
 """
-    assert_invariants(s::IDVector)::Nothing
+    assert_invariants(s::UniqueID)::Nothing
 
 Assert that `s` is in a valid state.
 Useful for testing or hacking at the data structure.
@@ -55,13 +55,13 @@ function assert_invariants end
 
 
 """
-    abstract type IDVector <: AbstractVector{Int64} end
+    abstract type UniqueID <: AbstractVector{Int64} end
 
 A vector of unique ids with accelerated mapping from id to index.
 """
-abstract type IDVector <: AbstractVector{Int64} end
+abstract type UniqueID <: AbstractVector{Int64} end
 
-function free_id!(s::IDVector, id::Int64)
+function free_id!(s::UniqueID, id::Int64)
     if id ∉ s
         throw(KeyError(id))
     else
@@ -77,15 +77,15 @@ function free_id!(s::IDVector, id::Int64)
     end
 end
 
-function Base.pop!(s::IDVector)
+function Base.pop!(s::UniqueID)
     id = last(s)
     _pop_id2idx!(s, id)
     id
 end
-function Base.popfirst!(s::IDVector)
+function Base.popfirst!(s::UniqueID)
     popat!(s, 1)
 end
-function Base.popat!(s::IDVector, idx::Integer)
+function Base.popat!(s::UniqueID, idx::Integer)
     id = s[idx]
     ids_len = length(s)
     _pop_id2idx!(s, id)
@@ -98,7 +98,7 @@ function Base.popat!(s::IDVector, idx::Integer)
     end
     id
 end
-function Base.popat!(s::IDVector, idx::Integer, default)
+function Base.popat!(s::UniqueID, idx::Integer, default)
     if idx ∈ eachindex(s)
         id = s[idx]
         ids_len = length(s)
@@ -115,11 +115,11 @@ function Base.popat!(s::IDVector, idx::Integer, default)
         default
     end
 end
-function Base.deleteat!(s::IDVector, idx::Integer)
+function Base.deleteat!(s::UniqueID, idx::Integer)
     popat!(s, idx)
     s
 end
-function Base.deleteat!(a::IDVector, inds::AbstractVector{Bool})
+function Base.deleteat!(a::UniqueID, inds::AbstractVector{Bool})
     n = length(a)
     length(inds) == n || throw(BoundsError(a, inds))
     p = 1
@@ -135,7 +135,7 @@ function Base.deleteat!(a::IDVector, inds::AbstractVector{Bool})
     end
     a
 end
-function Base.deleteat!(a::IDVector, inds)
+function Base.deleteat!(a::UniqueID, inds)
     n_delete = 0
     lastidx::Int = -1
     p = 1
@@ -165,7 +165,7 @@ function Base.deleteat!(a::IDVector, inds)
     end
     a
 end
-function Base.keepat!(a::IDVector, inds::AbstractVector{Bool})
+function Base.keepat!(a::UniqueID, inds::AbstractVector{Bool})
     n = length(a)
     length(inds) == n || throw(BoundsError(a, inds))
     p = 1
@@ -181,7 +181,7 @@ function Base.keepat!(a::IDVector, inds::AbstractVector{Bool})
     end
     a
 end
-function Base.keepat!(a::IDVector, inds)
+function Base.keepat!(a::UniqueID, inds)
     n_keep = 0
     n = length(a)
     lastidx::Int = -1
@@ -203,7 +203,7 @@ function Base.keepat!(a::IDVector, inds)
     end
     a
 end
-function Base.filter!(f, a::IDVector)
+function Base.filter!(f, a::UniqueID)
     keep = Bool[f(id) for id in a]
     keepat!(a, keep)
     a
@@ -264,7 +264,7 @@ end
 
 Swap the positions of ids at index a and b
 """
-Base.@propagate_inbounds function swap!(s::IDVector, a::Int, b::Int)
+Base.@propagate_inbounds function swap!(s::UniqueID, a::Int, b::Int)
     @boundscheck checkbounds(s, a)
     @boundscheck checkbounds(s, b)
     if a != b
@@ -289,7 +289,7 @@ Base.@propagate_inbounds function swap!(s::AbstractVector, a::Int, b::Int)
     s
 end
 
-function Base.permute!(s::IDVector, perm::AbstractVector)
+function Base.permute!(s::UniqueID, perm::AbstractVector)
     old_ids = s.ids
     new_ids = similar(s.ids)
     for (a, b) in enumerate(perm)
@@ -299,7 +299,7 @@ function Base.permute!(s::IDVector, perm::AbstractVector)
     s.ids = new_ids
     s
 end
-function Base.invpermute!(s::IDVector, perm::AbstractVector)
+function Base.invpermute!(s::UniqueID, perm::AbstractVector)
     old_ids = s.ids
     new_ids = similar(s.ids)
     for (a, b) in enumerate(perm)
@@ -310,7 +310,7 @@ function Base.invpermute!(s::IDVector, perm::AbstractVector)
     s
 end
 
-function assert_invariants(s::IDVector)
+function assert_invariants(s::UniqueID)
     @assert !iszero(next_id(s))
     @assert next_id(s) ∉ s
     @assert Int64(0) ∉ s
@@ -323,29 +323,29 @@ function assert_invariants(s::IDVector)
     nothing
 end
 
-@inline function Base.getindex(s::IDVector, idx::Int)
+@inline function Base.getindex(s::UniqueID, idx::Int)
     @boundscheck checkbounds(s, idx)
     getindex(s.ids, idx)
 end
 
-function Base.findfirst(p::Base.Fix2{typeof(isequal), Int64}, s::IDVector)
+function Base.findfirst(p::Base.Fix2{typeof(isequal), Int64}, s::UniqueID)
     if p.x ∈ s
         id2idx(s, p.x)
     else
         nothing
     end
 end
-function Base.findlast(p::Base.Fix2{typeof(isequal), Int64}, s::IDVector)
+function Base.findlast(p::Base.Fix2{typeof(isequal), Int64}, s::UniqueID)
     if p.x ∈ s
         id2idx(s, p.x)
     else
         nothing
     end
 end
-function Base.indexin(a, s::IDVector)
+function Base.indexin(a, s::UniqueID)
     Union{Nothing, Int}[findfirst(isequal(id), s) for id in a]
 end
-function Base.findnext(p::Base.Fix2{typeof(isequal), Int64}, s::IDVector, i::Integer)
+function Base.findnext(p::Base.Fix2{typeof(isequal), Int64}, s::UniqueID, i::Integer)
     if p.x ∈ s
         idx = id2idx(s, p.x)
         if idx < i
@@ -357,7 +357,7 @@ function Base.findnext(p::Base.Fix2{typeof(isequal), Int64}, s::IDVector, i::Int
         nothing
     end
 end
-function Base.findprev(p::Base.Fix2{typeof(isequal), Int64}, s::IDVector, i::Integer)
+function Base.findprev(p::Base.Fix2{typeof(isequal), Int64}, s::UniqueID, i::Integer)
     if p.x ∈ s
         idx = id2idx(s, p.x)
         if idx > i
@@ -369,7 +369,7 @@ function Base.findprev(p::Base.Fix2{typeof(isequal), Int64}, s::IDVector, i::Int
         nothing
     end
 end
-function Base.findall(p::Base.Fix2{typeof(isequal), Int64}, s::IDVector)
+function Base.findall(p::Base.Fix2{typeof(isequal), Int64}, s::UniqueID)
     if p.x ∈ s
         Int[id2idx(s, p.x)]
     else
@@ -377,11 +377,11 @@ function Base.findall(p::Base.Fix2{typeof(isequal), Int64}, s::IDVector)
     end
 end
 
-function Base.count(p::Base.Fix2{typeof(isequal), Int64}, s::IDVector)
+function Base.count(p::Base.Fix2{typeof(isequal), Int64}, s::UniqueID)
     Int(p.x ∈ s)
 end
 
-function Base.sizehint!(s::IDVector, n; kwargs...)
+function Base.sizehint!(s::UniqueID, n; kwargs...)
     newsize = max(Int(n), length(s))
     _sizehint_id2idx!(s, newsize; kwargs...)
     if newsize != length(s.ids)
@@ -392,14 +392,14 @@ function Base.sizehint!(s::IDVector, n; kwargs...)
     s
 end
 
-function Base.allunique(::IDVector)
+function Base.allunique(::UniqueID)
     true
 end
 
-function Base.unique(s::IDVector)
+function Base.unique(s::UniqueID)
     copy(s)
 end
-function Base.unique!(s::IDVector)
+function Base.unique!(s::UniqueID)
     s
 end
 

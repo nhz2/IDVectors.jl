@@ -1,5 +1,5 @@
-name = "IDVectors"
-uuid = "164603a6-17c3-52df-9117-5286459079d8"
+name = "UniqueIDs"
+uuid = "20dae3cf-a72a-46c2-a81c-a5a401b1c55e"
 authors = ["Nathan Zimmerberg <nzimmerberg@gmail.com>"]
 version = "0.1.0"
 

@@ -4,7 +4,7 @@ The 32 least significant bits of an id is an index.
 id's are never zero.
 IDs never wrap around but 8 bytes are leaked every 2^31 pairs of alloc and free.
 """
-mutable struct GenNoWrapIDVector <: IDVector
+mutable struct GenNoWrap <: UniqueID
     ids::Memory{Int64}
     idx_gens::Memory{NTuple{2, UInt32}}
     gens_len::UInt32
@@ -14,8 +14,8 @@ mutable struct GenNoWrapIDVector <: IDVector
     free_head::UInt32
 end
 
-function GenNoWrapIDVector()
-    GenNoWrapIDVector(
+function GenNoWrap()
+    GenNoWrap(
         Memory{Int64}(undef,0),
         Memory{NTuple{2, UInt32}}(undef, 0),
         UInt32(0),
@@ -24,7 +24,7 @@ function GenNoWrapIDVector()
     )
 end
 
-function reset!(s::GenNoWrapIDVector)::GenNoWrapIDVector
+function reset!(s::GenNoWrap)::GenNoWrap
     s.ids = Memory{Int64}(undef,0)
     s.idx_gens = Memory{NTuple{2, UInt32}}(undef, 0)
     s.gens_len = UInt32(0)
@@ -33,8 +33,8 @@ function reset!(s::GenNoWrapIDVector)::GenNoWrapIDVector
     s
 end
 
-function Base.copy(s::GenNoWrapIDVector)
-    GenNoWrapIDVector(
+function Base.copy(s::GenNoWrap)
+    GenNoWrap(
         copy(s.ids),
         copy(s.idx_gens),
         s.gens_len,
@@ -43,7 +43,7 @@ function Base.copy(s::GenNoWrapIDVector)
     )
 end
 
-function _assert_invariants_id2idx!(s::GenNoWrapIDVector)
+function _assert_invariants_id2idx!(s::GenNoWrap)
     @assert length(s.idx_gens) ≤ typemax(UInt32)
     @assert s.gens_len ≤ length(s.idx_gens)
     @assert s.n_active ≤ s.gens_len
@@ -78,7 +78,7 @@ function _assert_invariants_id2idx!(s::GenNoWrapIDVector)
     nothing
 end
 
-function next_id(s::GenNoWrapIDVector)::Int64
+function next_id(s::GenNoWrap)::Int64
     gens_len = s.gens_len
     free_head = s.free_head
     if iszero(free_head)
@@ -94,7 +94,7 @@ function next_id(s::GenNoWrapIDVector)::Int64
     end
 end
 
-function alloc_id!(s::GenNoWrapIDVector)::Int64
+function alloc_id!(s::GenNoWrap)::Int64
     n_active = s.n_active
     if n_active == typemax(UInt32)
         throw(OverflowError("next_id would wraparound"))
@@ -126,7 +126,7 @@ function alloc_id!(s::GenNoWrapIDVector)::Int64
     id
 end
 
-function _pop_id2idx!(s::GenNoWrapIDVector, id::Int64)::Int
+function _pop_id2idx!(s::GenNoWrap, id::Int64)::Int
     if id ∉ s
         throw(KeyError(id))
     end
@@ -144,7 +144,7 @@ function _pop_id2idx!(s::GenNoWrapIDVector, id::Int64)::Int
     idx
 end
 
-Base.@propagate_inbounds function _set_id2idx!(s::GenNoWrapIDVector, idx::Int, id::Int64)::Nothing
+Base.@propagate_inbounds function _set_id2idx!(s::GenNoWrap, idx::Int, id::Int64)::Nothing
     @boundscheck if id ∉ s
         throw(KeyError(id))
     end
@@ -154,11 +154,11 @@ Base.@propagate_inbounds function _set_id2idx!(s::GenNoWrapIDVector, idx::Int, i
     nothing
 end
 
-function Base.size(s::GenNoWrapIDVector)
+function Base.size(s::GenNoWrap)
     (Int(s.n_active),)
 end
 
-function Base.in(id::Int64, s::GenNoWrapIDVector)::Bool
+function Base.in(id::Int64, s::GenNoWrap)::Bool
     idx = id%UInt32
     gen = (id>>>32)%UInt32
     if isodd(gen)
@@ -177,7 +177,7 @@ function Base.in(id::Int64, s::GenNoWrapIDVector)::Bool
     return true
 end
 
-Base.@propagate_inbounds function id2idx(s::GenNoWrapIDVector, id::Int64)::Int
+Base.@propagate_inbounds function id2idx(s::GenNoWrap, id::Int64)::Int
     @boundscheck if id ∉ s
         throw(KeyError(id))
     end
@@ -185,7 +185,7 @@ Base.@propagate_inbounds function id2idx(s::GenNoWrapIDVector, id::Int64)::Int
     first(s.idx_gens[idx])
 end
 
-function Base.empty!(s::GenNoWrapIDVector)::GenNoWrapIDVector
+function Base.empty!(s::GenNoWrap)::GenNoWrap
     n = s.gens_len
     for gidx in UInt32(1):n
         idx, gen = s.idx_gens[gidx]
@@ -203,7 +203,7 @@ function Base.empty!(s::GenNoWrapIDVector)::GenNoWrapIDVector
     s
 end
 
-function _sizehint_id2idx!(s::GenNoWrapIDVector, n; kwargs...)
+function _sizehint_id2idx!(s::GenNoWrap, n; kwargs...)
     if n > typemax(UInt32)
         throw(OverflowError("next_id would wraparound"))
     end

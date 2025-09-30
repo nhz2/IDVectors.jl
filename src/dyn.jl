@@ -1,7 +1,7 @@
 """
-Fixes the limitations of GenIDVector at the cost of 4-8 times the memory footprint.
+Fixes the limitations of Gen at the cost of 4-8 times the memory footprint.
 """
-mutable struct DynIDVector <: IDVector
+mutable struct Dyn <: UniqueID
     ids::Memory{Int64}
     idx_slots::Memory{NTuple{2, Int64}}
     n_active::Int64
@@ -9,10 +9,10 @@ mutable struct DynIDVector <: IDVector
     mask::Int64
 end
 
-function DynIDVector()
+function Dyn()
     idx_slots = Memory{NTuple{2, Int64}}(undef, 1)
     idx_slots[1] = (Int64(0), Int64(0))
-    DynIDVector(
+    Dyn(
         Memory{Int64}(undef,0),
         idx_slots,
         Int64(0),
@@ -21,7 +21,7 @@ function DynIDVector()
     )
 end
 
-function reset!(s::DynIDVector)::DynIDVector
+function reset!(s::Dyn)::Dyn
     idx_slots = Memory{NTuple{2, Int64}}(undef, 1)
     idx_slots[1] = (Int64(0), Int64(0))
     s.ids = Memory{Int64}(undef,0)
@@ -32,8 +32,8 @@ function reset!(s::DynIDVector)::DynIDVector
     s
 end
 
-function Base.copy(s::DynIDVector)
-    DynIDVector(
+function Base.copy(s::Dyn)
+    Dyn(
         copy(s.ids),
         copy(s.idx_slots),
         s.n_active,
@@ -42,7 +42,7 @@ function Base.copy(s::DynIDVector)
     )
 end
 
-function _assert_invariants_id2idx!(s::DynIDVector)
+function _assert_invariants_id2idx!(s::Dyn)
     @assert s.n_active ≤ length(s.idx_slots)
     @assert s.n_active == count(!iszero ∘ last, s.idx_slots)
     @assert length(s.idx_slots) - 1 == s.mask
@@ -57,11 +57,11 @@ function _assert_invariants_id2idx!(s::DynIDVector)
     nothing
 end
 
-function next_id(s::DynIDVector)::Int64
+function next_id(s::Dyn)::Int64
     s.next_id
 end
 
-function _grow_idx_slots(s::DynIDVector, n::Int64)
+function _grow_idx_slots(s::Dyn, n::Int64)
     if n ≤ length(s.idx_slots) ÷ 2
         return
     else
@@ -85,7 +85,7 @@ function _grow_idx_slots(s::DynIDVector, n::Int64)
     end
 end
 
-function alloc_id!(s::DynIDVector)::Int64
+function alloc_id!(s::Dyn)::Int64
     idx = s.n_active + 1
     _grow_field!(s, Int64(idx), :ids)
     # If free slots drops below 50% expand slots
@@ -109,7 +109,7 @@ function alloc_id!(s::DynIDVector)::Int64
     id
 end
 
-function _pop_id2idx!(s::DynIDVector, id::Int64)::Int
+function _pop_id2idx!(s::Dyn, id::Int64)::Int
     if id ∉ s
         throw(KeyError(id))
     end
@@ -119,7 +119,7 @@ function _pop_id2idx!(s::DynIDVector, id::Int64)::Int
     idx
 end
 
-Base.@propagate_inbounds function _set_id2idx!(s::DynIDVector, idx::Int, id::Int64)::Nothing
+Base.@propagate_inbounds function _set_id2idx!(s::Dyn, idx::Int, id::Int64)::Nothing
     @boundscheck if id ∉ s
         throw(KeyError(id))
     end
@@ -127,31 +127,31 @@ Base.@propagate_inbounds function _set_id2idx!(s::DynIDVector, idx::Int, id::Int
     nothing
 end
 
-function Base.size(s::DynIDVector)
+function Base.size(s::Dyn)
     (Int(s.n_active),)
 end
 
-function Base.in(id::Int64, s::DynIDVector)::Bool
+function Base.in(id::Int64, s::Dyn)::Bool
     if iszero(id)
         return false
     end
     return last(s.idx_slots[begin + (id & s.mask)]) == id
 end
 
-Base.@propagate_inbounds function id2idx(s::DynIDVector, id::Int64)::Int
+Base.@propagate_inbounds function id2idx(s::Dyn, id::Int64)::Int
     @boundscheck if id ∉ s
         throw(KeyError(id))
     end
     first(s.idx_slots[begin + (id & s.mask)])
 end
 
-function Base.empty!(s::DynIDVector)::DynIDVector
+function Base.empty!(s::Dyn)::Dyn
     fill!(s.idx_slots, (Int64(0), Int64(0)))
     s.n_active = UInt32(0)
     s
 end
 
-function _sizehint_id2idx!(s::DynIDVector, n; kwargs...)
+function _sizehint_id2idx!(s::Dyn, n; kwargs...)
     _grow_idx_slots(s, clamp(n, Int64))
     nothing
 end

@@ -1,4 +1,4 @@
-using IDVectors
+using UniqueIDs
 using AxisKeys
 
 struct Foo
@@ -6,7 +6,7 @@ struct Foo
     baz::Int
 end
 
-data = KeyedArray(Foo[], DynIDVector())
+data = KeyedArray(Foo[], Dyn())
 
 push!(data, Foo(1.0, 3))
 

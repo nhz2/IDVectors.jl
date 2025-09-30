@@ -8,7 +8,7 @@ The 32 least significant bits of an id is an index.
 id's are never zero.
 IDs may wrap around after about 2^47 pairs of alloc and free.
 """
-mutable struct GenIDVector <: IDVector
+mutable struct Gen <: UniqueID
     ids::Memory{Int64}
     idx_gens::Memory{NTuple{2, UInt32}}
     gens_len::UInt32
@@ -21,8 +21,8 @@ mutable struct GenIDVector <: IDVector
     target_queue_length::Int
 end
 
-function GenIDVector()
-    GenIDVector(
+function Gen()
+    Gen(
         Memory{Int64}(undef,0),
         Memory{NTuple{2, UInt32}}(undef, 0),
         UInt32(0),
@@ -33,7 +33,7 @@ function GenIDVector()
     )
 end
 
-function reset!(s::GenIDVector)::GenIDVector
+function reset!(s::Gen)::Gen
     s.ids = Memory{Int64}(undef,0)
     s.idx_gens = Memory{NTuple{2, UInt32}}(undef, 0)
     s.gens_len = UInt32(0)
@@ -44,8 +44,8 @@ function reset!(s::GenIDVector)::GenIDVector
     s
 end
 
-function Base.copy(s::GenIDVector)
-    GenIDVector(
+function Base.copy(s::Gen)
+    Gen(
         copy(s.ids),
         copy(s.idx_gens),
         s.gens_len,
@@ -56,7 +56,7 @@ function Base.copy(s::GenIDVector)
     )
 end
 
-function _assert_invariants_id2idx!(s::GenIDVector)
+function _assert_invariants_id2idx!(s::Gen)
     @assert length(s.idx_gens) ≤ typemax(UInt32)
     @assert s.gens_len ≤ length(s.idx_gens)
     @assert s.n_active ≤ s.gens_len
@@ -93,7 +93,7 @@ function _assert_invariants_id2idx!(s::GenIDVector)
     nothing
 end
 
-function next_id(s::GenIDVector)::Int64
+function next_id(s::Gen)::Int64
     n_active = s.n_active
     if n_active ≥ typemax(UInt32) - s.target_queue_length
         throw(OverflowError("next_id would wraparound"))
@@ -106,7 +106,7 @@ function next_id(s::GenIDVector)::Int64
     end
 end
 
-function _grow_free_queue!(s::GenIDVector, n::Int64)
+function _grow_free_queue!(s::Gen, n::Int64)
     n = n + s.target_queue_length
     old_mem = s.idx_gens
     old_len = length(old_mem)
@@ -130,7 +130,7 @@ function _grow_free_queue!(s::GenIDVector, n::Int64)
     end
 end
 
-function alloc_id!(s::GenIDVector)::Int64
+function alloc_id!(s::Gen)::Int64
     n_active = s.n_active
     if s.target_queue_length ≥ typemax(UInt32) - n_active
         throw(OverflowError("next_id would wraparound"))
@@ -151,7 +151,7 @@ function alloc_id!(s::GenIDVector)::Int64
     id
 end
 
-function _pop_id2idx!(s::GenIDVector, id::Int64)::Int
+function _pop_id2idx!(s::Gen, id::Int64)::Int
     if id ∉ s
         throw(KeyError(id))
     end
@@ -165,7 +165,7 @@ function _pop_id2idx!(s::GenIDVector, id::Int64)::Int
     idx
 end
 
-Base.@propagate_inbounds function _set_id2idx!(s::GenIDVector, idx::Int, id::Int64)::Nothing
+Base.@propagate_inbounds function _set_id2idx!(s::Gen, idx::Int, id::Int64)::Nothing
     @boundscheck if id ∉ s
         throw(KeyError(id))
     end
@@ -176,11 +176,11 @@ Base.@propagate_inbounds function _set_id2idx!(s::GenIDVector, idx::Int, id::Int
 end
 
 
-function Base.size(s::GenIDVector)
+function Base.size(s::Gen)
     (Int(s.n_active),)
 end
 
-function Base.in(id::Int64, s::GenIDVector)::Bool
+function Base.in(id::Int64, s::Gen)::Bool
     idx = id%UInt32
     gen = (id>>>32)%UInt32
     if isodd(gen)
@@ -199,7 +199,7 @@ function Base.in(id::Int64, s::GenIDVector)::Bool
     return true
 end
 
-Base.@propagate_inbounds function id2idx(s::GenIDVector, id::Int64)::Int
+Base.@propagate_inbounds function id2idx(s::Gen, id::Int64)::Int
     @boundscheck if id ∉ s
         throw(KeyError(id))
     end
@@ -207,7 +207,7 @@ Base.@propagate_inbounds function id2idx(s::GenIDVector, id::Int64)::Int
     first(s.idx_gens[idx])
 end
 
-function Base.empty!(s::GenIDVector)::GenIDVector
+function Base.empty!(s::Gen)::Gen
     n = s.gens_len
     for gidx in UInt32(1):n
         idx, gen = s.idx_gens[gidx]
@@ -221,7 +221,7 @@ function Base.empty!(s::GenIDVector)::GenIDVector
     s
 end
 
-function _sizehint_id2idx!(s::GenIDVector, n; kwargs...)
+function _sizehint_id2idx!(s::Gen, n; kwargs...)
     if n > typemax(UInt32) - s.target_queue_length
         throw(OverflowError("next_id would wraparound"))
     end

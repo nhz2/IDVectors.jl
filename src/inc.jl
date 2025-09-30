@@ -2,17 +2,17 @@
 The next id is just 1 + the last id
 The id will wrap around to negative values, but avoid zero.
 """
-mutable struct IncIDVector <: IDVector
+mutable struct Inc <: UniqueID
     ids::Memory{Int64}
     const id2idx::Dict{Int64, Int}
     next_id::Int64
 end
 
-function IncIDVector()
-    IncIDVector(Memory{Int64}(undef,0), Dict{Int64, Int}(), Int64(1))
+function Inc()
+    Inc(Memory{Int64}(undef,0), Dict{Int64, Int}(), Int64(1))
 end
 
-function reset!(s::IncIDVector)::IncIDVector
+function reset!(s::Inc)::Inc
     s.next_id = Int64(1)
     empty!(s.id2idx)
     sizehint!(s.id2idx, 0)
@@ -20,19 +20,19 @@ function reset!(s::IncIDVector)::IncIDVector
     s
 end
 
-function Base.copy(s::IncIDVector)
-    IncIDVector(copy(s.ids), copy(s.id2idx), s.next_id)
+function Base.copy(s::Inc)
+    Inc(copy(s.ids), copy(s.id2idx), s.next_id)
 end
 
-function _assert_invariants_id2idx!(s::IncIDVector)
+function _assert_invariants_id2idx!(s::Inc)
     nothing
 end
 
-function next_id(s::IncIDVector)::Int64
+function next_id(s::Inc)::Int64
     s.next_id
 end
 
-function alloc_id!(s::IncIDVector)::Int64
+function alloc_id!(s::Inc)::Int64
     idx = length(s) + 1
     _grow_field!(s, Int64(idx), :ids)
     id = s.next_id
@@ -54,33 +54,33 @@ function alloc_id!(s::IncIDVector)::Int64
     id
 end
 
-function _pop_id2idx!(s::IncIDVector, id::Int64)::Int
+function _pop_id2idx!(s::Inc, id::Int64)::Int
     pop!(s.id2idx, id)
 end
 
-function _set_id2idx!(s::IncIDVector, idx::Int, id::Int64)::Nothing
+function _set_id2idx!(s::Inc, idx::Int, id::Int64)::Nothing
     s.id2idx[id] = idx
     nothing
 end
 
-function Base.size(s::IncIDVector)
+function Base.size(s::Inc)
     (length(s.id2idx),)
 end
 
-function Base.in(id::Int64, s::IncIDVector)::Bool
+function Base.in(id::Int64, s::Inc)::Bool
     haskey(s.id2idx, id)
 end
 
-function id2idx(s::IncIDVector, id::Int64)::Int
+function id2idx(s::Inc, id::Int64)::Int
     s.id2idx[id]
 end
 
-function Base.empty!(s::IncIDVector)
+function Base.empty!(s::Inc)
     empty!(s.id2idx)
     s
 end
 
-function _sizehint_id2idx!(s::IncIDVector, n; kwargs...)
+function _sizehint_id2idx!(s::Inc, n; kwargs...)
     sizehint!(s.id2idx, n; kwargs...)
     nothing
 end

@@ -1,23 +1,23 @@
 module AxisKeysExt
 
 import AxisKeys
-using IDVectors
+using UniqueIDs
 
-function AxisKeys.extend_one!!(s::IDVectors.IDVector)
+function AxisKeys.extend_one!!(s::UniqueIDs.UniqueID)
     alloc_id!(s)
     s
 end
 
 extend_by!!(r::Vector{<:Number}, n::Int) = append!(r, length(r)+1 : length(r)+n+1)
 
-function AxisKeys.extend_by!!(s::IDVectors.IDVector, n::Int)
+function AxisKeys.extend_by!!(s::UniqueIDs.UniqueID, n::Int)
     for i in 1:n
         alloc_id!(s)
     end
     s
 end
 
-function AxisKeys.shorten_one!!(s::IDVectors.IDVector)
+function AxisKeys.shorten_one!!(s::UniqueIDs.UniqueID)
     pop!(s)
     s
 end

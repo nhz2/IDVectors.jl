@@ -1,13 +1,13 @@
-using IDVectors
-using IDVectors: assert_invariants, reset!
+using UniqueIDs
+using UniqueIDs: assert_invariants, reset!
 using Test
 
 # Generic tests
 @testset "$idvector" for idvector in [
-        IncIDVector,
-        GenIDVector,
-        GenNoWrapIDVector,
-        DynIDVector,
+        Inc,
+        Gen,
+        GenNoWrap,
+        Dyn,
     ]
     s = idvector()
     assert_invariants(s)
@@ -525,7 +525,7 @@ end
 # Specific tests for each type
 @testset "Inc specific" begin
     # wrap around is allowed but should not be zero or violate uniqueness
-    s = IncIDVector()
+    s = Inc()
     s.next_id = -2
     assert_invariants(s)
     @test next_id(s) == -2
@@ -538,7 +538,7 @@ end
     @test alloc_id!(s) == 1
     assert_invariants(s)
 
-    s = IncIDVector()
+    s = Inc()
     s.next_id = -2
     s.id2idx[Int64(1)] = 1
     s.ids = Memory{Int64}(undef, 1)
@@ -558,7 +558,7 @@ end
 @testset "Gen specific" begin
     # Test generation-based ID structure
     @testset "Generation-based ID structure" begin
-        s = GenIDVector()
+        s = Gen()
         id = alloc_id!(s)
         
         # Extract index and generation
@@ -579,12 +579,12 @@ end
 
     # Test that overflow is handled appropriately
     @testset "Overflow handling" begin
-        s = GenIDVector()
+        s = Gen()
         @test_throws OverflowError sizehint!(s, typemax(UInt32))
         assert_invariants(s)
 
         # Set up s with high generations to simulate gen overflow
-        s = GenIDVector()
+        s = Gen()
         sizehint!(s, 10)
         n = length(s.idx_gens)
         s.gens_len = n
@@ -612,16 +612,16 @@ end
     end
 end
 @testset "GenNoWrap specific" begin
-    s = GenNoWrapIDVector()
+    s = GenNoWrap()
 
     # Test that overflow is handled appropriately
     @testset "Overflow handling" begin
-        s = GenNoWrapIDVector()
+        s = GenNoWrap()
         @test_throws OverflowError sizehint!(s, typemax(UInt32) + Int64(1))
         assert_invariants(s)
 
         # Set up s with high generations to simulate gen overflow
-        s = GenIDVector()
+        s = Gen()
         sizehint!(s, 10)
         n = length(s.idx_gens)
         s.gens_len = n
@@ -648,7 +648,7 @@ end
 @testset "Dyn specific" begin
     # Test that overflow is handled appropriately
     @testset "Overflow handling" begin
-        s = DynIDVector()
+        s = Dyn()
         s.next_id = -1
         assert_invariants(s)
         @test alloc_id!(s) == -1
