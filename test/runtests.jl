@@ -1,5 +1,8 @@
 using UniqueIDs
 using Test
+using Aqua: Aqua
+
+Aqua.test_all(UniqueIDs)
 
 #=
 Don't add your tests to runtests.jl. Instead, create files named

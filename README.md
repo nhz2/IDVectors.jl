@@ -13,7 +13,7 @@ AbstractVectors of unique Int64 IDs to help keep track of collections of things 
 ```julia
 using StructArrays
 using UniqueIDs
-using Tests
+using Test
 
 struct Foo
     neighbor::Int64
@@ -47,9 +47,10 @@ data.neighbor[3] = id4
 data.neighbor[4] = id3
 
 # Return `id`'s neighbor's mass
+# ids is callable to convert from an id to an index
 function neighbors_mass(data, ids, id)
-    nid = data.neighbor[id2idx(ids, id)]
-    data.mass[id2idx(ids, nid)]
+    nid = data.neighbor[ids(id)]
+    data.mass[ids(nid)]
 end
 
 @test neighbors_mass(data, ids, id1) == 2.5

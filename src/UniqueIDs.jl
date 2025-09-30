@@ -328,6 +328,9 @@ end
     getindex(s.ids, idx)
 end
 
+function (s::UniqueID)(id::Int64)
+    id2idx(s, id)
+end
 function Base.findfirst(p::Base.Fix2{typeof(isequal), Int64}, s::UniqueID)
     if p.x ∈ s
         id2idx(s, p.x)

@@ -376,6 +376,14 @@ using Test
             @test_throws KeyError id2idx(v, ids[1])
             @test id2idx(v, ids[5]) === 1
         end
+        @testset "calling" begin
+            v = idvector()
+            ids = [alloc_id!(v) for i in 1:5]  # ids[1] through ids[5]
+            @test v(ids[1]) === 1
+            free_id!(v, ids[1])
+            @test_throws KeyError v(ids[1])
+            @test v(ids[5]) === 1
+        end
         @testset "findfirst" begin
             v = idvector()
             ids = [alloc_id!(v) for i in 1:5]  # ids[1] through ids[5]

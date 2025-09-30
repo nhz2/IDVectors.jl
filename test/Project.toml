@@ -1,5 +1,6 @@
 [deps]
+Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 AxisKeys = "94b1ba4f-4ee9-5380-92f1-94cde586c3c5"
-UniqueIDs = "20dae3cf-a72a-46c2-a81c-a5a401b1c55e"
 StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+UniqueIDs = "20dae3cf-a72a-46c2-a81c-a5a401b1c55e"
