@@ -101,7 +101,7 @@ function next_id(s::Gen)::Int64
     if iszero(s.free_head)
         Int64(length(s.idx_gens) + 1)
     else
-        new_gen = last(s.idx_gens[s.free_head]) + UInt32(1)
+        @inbounds new_gen = last(s.idx_gens[s.free_head]) + UInt32(1)
         Int64(new_gen)<<32 | Int64(s.free_head)
     end
 end
@@ -116,12 +116,12 @@ function _grow_free_queue!(s::Gen, n::Int64)
         unsafe_copyto!(new_mem, 1, old_mem, 1, old_len)
         # fill out the free queue
         if !iszero(s.free_tail)
-            new_mem[s.free_tail] = (UInt32(old_len + 1), last(new_mem[s.free_tail]))
+            @inbounds new_mem[s.free_tail] = (UInt32(old_len + 1), last(new_mem[s.free_tail]))
         end
         for i in old_len + 1 : new_size - 1
-            new_mem[i] = (UInt32(i+1), typemax(UInt32))
+            @inbounds new_mem[i] = (UInt32(i+1), typemax(UInt32))
         end
-        new_mem[end] = (UInt32(0), typemax(UInt32))
+        @inbounds new_mem[end] = (UInt32(0), typemax(UInt32))
         if iszero(s.free_head)
             s.free_head = UInt32(old_len + 1)
         end
@@ -141,11 +141,11 @@ function alloc_id!(s::Gen)::Int64
     if s.free_head > s.gens_len
         s.gens_len = s.free_head
     end
-    next_p, old_gen = s.idx_gens[s.free_head]
+    @inbounds next_p, old_gen = s.idx_gens[s.free_head]
     new_gen = old_gen + UInt32(1)
     id = Int64(new_gen)<<32 | Int64(s.free_head)
-    s.idx_gens[s.free_head] = (idx, new_gen)
-    s.ids[idx] = id
+    @inbounds s.idx_gens[s.free_head] = (idx, new_gen)
+    @inbounds s.ids[idx] = id
     s.n_active += UInt32(1)
     s.free_head = next_p
     id
@@ -157,10 +157,10 @@ function _pop_id2idx!(s::Gen, id::Int64)::Int
     end
     gidx = id%UInt32
     gen = (id>>>32)%UInt32
-    idx, storedgen = s.idx_gens[gidx]
-    s.idx_gens[s.free_tail] = (gidx, last(s.idx_gens[s.free_tail]))
+    @inbounds idx, storedgen = s.idx_gens[gidx]
+    @inbounds s.idx_gens[s.free_tail] = (gidx, last(s.idx_gens[s.free_tail]))
     s.free_tail = gidx
-    s.idx_gens[gidx] = (UInt32(0), gen + UInt32(1))
+    @inbounds s.idx_gens[gidx] = (UInt32(0), gen + UInt32(1))
     s.n_active -= UInt32(1)
     idx
 end
@@ -171,7 +171,7 @@ Base.@propagate_inbounds function _set_id2idx!(s::Gen, idx::Int, id::Int64)::Not
     end
     gidx = id%UInt32
     gen = (id>>>32)%UInt32
-    s.idx_gens[gidx] = (idx, gen)
+    @inbounds s.idx_gens[gidx] = (idx, gen)
     nothing
 end
 
@@ -192,7 +192,7 @@ function Base.in(id::Int64, s::Gen)::Bool
     if idx > s.gens_len
         return false
     end
-    saved_gen = last(s.idx_gens[idx])
+    @inbounds saved_gen = last(s.idx_gens[idx])
     if saved_gen != gen
         return false
     end
@@ -204,17 +204,17 @@ Base.@propagate_inbounds function id2idx(s::Gen, id::Int64)::Int
         throw(KeyError(id))
     end
     idx = id%UInt32
-    first(s.idx_gens[idx])
+    @inbounds first(s.idx_gens[idx])
 end
 
 function Base.empty!(s::Gen)::Gen
     n = s.gens_len
     for gidx in UInt32(1):n
-        idx, gen = s.idx_gens[gidx]
+        @inbounds idx, gen = s.idx_gens[gidx]
         if iseven(gen)
-            s.idx_gens[s.free_tail] = (gidx, last(s.idx_gens[s.free_tail]))
+            @inbounds s.idx_gens[s.free_tail] = (gidx, last(s.idx_gens[s.free_tail]))
             s.free_tail = gidx
-            s.idx_gens[gidx] = (UInt32(0), gen + UInt32(1))
+            @inbounds s.idx_gens[gidx] = (UInt32(0), gen + UInt32(1))
         end
     end
     s.n_active = UInt32(0)

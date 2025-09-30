@@ -89,7 +89,7 @@ function next_id(s::GenNoWrap)::Int64
         Int64(gens_len + UInt32(1))
     else
         # Pick a slot off the free queue
-        new_gen = last(s.idx_gens[free_head]) + UInt32(1)
+        @inbounds new_gen = last(s.idx_gens[free_head]) + UInt32(1)
         Int64(new_gen)<<32 | Int64(free_head)
     end
 end
@@ -110,19 +110,19 @@ function alloc_id!(s::GenNoWrap)::Int64
         end
         _grow_field!(s, Int64(gens_len + UInt32(1)), :idx_gens, Int64(typemax(UInt32)))
         s.gens_len += UInt32(1)
-        s.idx_gens[s.gens_len] = (idx, UInt32(0))
+        @inbounds s.idx_gens[s.gens_len] = (idx, UInt32(0))
         s.n_active += UInt32(1)
         Int64(s.gens_len)
     else
         # Pick a slot off the free queue
-        next_free_head, free_gen = s.idx_gens[free_head]
+        @inbounds next_free_head, free_gen = s.idx_gens[free_head]
         new_gen = free_gen + UInt32(1)
-        s.idx_gens[free_head] = (idx, new_gen)
+        @inbounds s.idx_gens[free_head] = (idx, new_gen)
         s.free_head = next_free_head
         s.n_active += UInt32(1)
         Int64(new_gen)<<32 | Int64(free_head)
     end
-    s.ids[idx] = id
+    @inbounds s.ids[idx] = id
     id
 end
 
@@ -133,12 +133,12 @@ function _pop_id2idx!(s::GenNoWrap, id::Int64)::Int
     gidx = id%UInt32
     gen = (id>>>32)%UInt32
     new_gen = gen + UInt32(1)
-    idx, storedgen = s.idx_gens[gidx]
+    @inbounds idx, storedgen = s.idx_gens[gidx]
     if new_gen != typemax(UInt32)
-        s.idx_gens[gidx] = (s.free_head, new_gen)
+        @inbounds s.idx_gens[gidx] = (s.free_head, new_gen)
         s.free_head = gidx
     else
-        s.idx_gens[gidx] = (~UInt32(0), new_gen)
+        @inbounds s.idx_gens[gidx] = (~UInt32(0), new_gen)
     end
     s.n_active -= UInt32(1)
     idx
@@ -150,7 +150,7 @@ Base.@propagate_inbounds function _set_id2idx!(s::GenNoWrap, idx::Int, id::Int64
     end
     gidx = id%UInt32
     gen = (id>>>32)%UInt32
-    s.idx_gens[gidx] = (idx, gen)
+    @inbounds s.idx_gens[gidx] = (idx, gen)
     nothing
 end
 
@@ -170,7 +170,7 @@ function Base.in(id::Int64, s::GenNoWrap)::Bool
     if idx > s.gens_len
         return false
     end
-    saved_gen = last(s.idx_gens[idx])
+    @inbounds saved_gen = last(s.idx_gens[idx])
     if saved_gen != gen
         return false
     end
@@ -182,20 +182,20 @@ Base.@propagate_inbounds function id2idx(s::GenNoWrap, id::Int64)::Int
         throw(KeyError(id))
     end
     idx = id%UInt32
-    first(s.idx_gens[idx])
+    @inbounds first(s.idx_gens[idx])
 end
 
 function Base.empty!(s::GenNoWrap)::GenNoWrap
     n = s.gens_len
     for gidx in UInt32(1):n
-        idx, gen = s.idx_gens[gidx]
+        @inbounds idx, gen = s.idx_gens[gidx]
         if iseven(gen)
             new_gen = gen + UInt32(1)
             if new_gen != typemax(UInt32)
-                s.idx_gens[gidx] = (s.free_head, new_gen)
+                @inbounds s.idx_gens[gidx] = (s.free_head, new_gen)
                 s.free_head = gidx
             else
-                s.idx_gens[gidx] = (~UInt32(0), new_gen)
+                @inbounds s.idx_gens[gidx] = (~UInt32(0), new_gen)
             end
         end
     end

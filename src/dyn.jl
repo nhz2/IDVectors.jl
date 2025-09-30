@@ -91,9 +91,9 @@ function alloc_id!(s::Dyn)::Int64
     # If free slots drops below 50% expand slots
     _grow_idx_slots(s, idx)
     id = s.next_id
-    s.idx_slots[begin + (id & s.mask)] = (idx, id)
+    @inbounds s.idx_slots[begin + (id & s.mask)] = (idx, id)
     next_id = id
-    while true
+    @inbounds while true
         next_id += Int64(1)
         # Skip zero so it can be used as a null
         if iszero(next_id)
@@ -105,7 +105,7 @@ function alloc_id!(s::Dyn)::Int64
     end
     s.next_id = next_id
     s.n_active += Int64(1)
-    s.ids[idx] = id
+    @inbounds s.ids[idx] = id
     id
 end
 
@@ -113,8 +113,8 @@ function _pop_id2idx!(s::Dyn, id::Int64)::Int
     if id ∉ s
         throw(KeyError(id))
     end
-    idx = first(s.idx_slots[begin + (id & s.mask)])
-    s.idx_slots[begin + (id & s.mask)] = (Int64(0), Int64(0))
+    @inbounds idx = first(s.idx_slots[begin + (id & s.mask)])
+    @inbounds s.idx_slots[begin + (id & s.mask)] = (Int64(0), Int64(0))
     s.n_active -= Int64(1)
     idx
 end
@@ -123,7 +123,7 @@ Base.@propagate_inbounds function _set_id2idx!(s::Dyn, idx::Int, id::Int64)::Not
     @boundscheck if id ∉ s
         throw(KeyError(id))
     end
-    s.idx_slots[begin + (id & s.mask)] = (idx, id)
+    @inbounds s.idx_slots[begin + (id & s.mask)] = (idx, id)
     nothing
 end
 
@@ -135,14 +135,14 @@ function Base.in(id::Int64, s::Dyn)::Bool
     if iszero(id)
         return false
     end
-    return last(s.idx_slots[begin + (id & s.mask)]) == id
+    @inbounds return last(s.idx_slots[begin + (id & s.mask)]) == id
 end
 
 Base.@propagate_inbounds function id2idx(s::Dyn, id::Int64)::Int
     @boundscheck if id ∉ s
         throw(KeyError(id))
     end
-    first(s.idx_slots[begin + (id & s.mask)])
+    @inbounds first(s.idx_slots[begin + (id & s.mask)])
 end
 
 function Base.empty!(s::Dyn)::Dyn
