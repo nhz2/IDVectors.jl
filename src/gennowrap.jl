@@ -171,10 +171,7 @@ function Base.in(id::Int64, s::GenNoWrap)::Bool
         return false
     end
     @inbounds saved_gen = last(s.idx_gens[idx])
-    if saved_gen != gen
-        return false
-    end
-    return true
+    return saved_gen == gen
 end
 
 Base.@propagate_inbounds function id2idx(s::GenNoWrap, id::Int64)::Int
