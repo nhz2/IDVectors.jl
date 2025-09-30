@@ -268,9 +268,12 @@ mutable struct GenIDVector <: IDVector
     idx_gens::Memory{NTuple{2, UInt32}}
     gens_len::UInt32
     n_active::UInt32
-    free_queue::Memory{UInt32}
-    free_read_head::UInt32
-    free_write_head::UInt32
+    # free_head and free_tail are the ends of a free link list queue 
+    # in the inactive idx slots in idx_gens
+    free_head::UInt32
+    free_tail::UInt32
+    # Keeping a large free queue reduces the frequency of reusing old ids
+    target_queue_length::Int
 end
 
 function GenIDVector()
@@ -279,9 +282,9 @@ function GenIDVector()
         Memory{NTuple{2, UInt32}}(undef, 0),
         UInt32(0),
         UInt32(0),
-        Memory{UInt32}(undef, 0),
         UInt32(0),
         UInt32(0),
+        MIN_FREE_QUEUE_LEN,
     )
 end
 
@@ -290,9 +293,9 @@ function reset!(s::GenIDVector)::GenIDVector
     s.idx_gens = Memory{NTuple{2, UInt32}}(undef, 0)
     s.gens_len = UInt32(0)
     s.n_active = UInt32(0)
-    s.free_queue = Memory{UInt32}(undef, 0)
-    s.free_read_head = UInt32(0)
-    s.free_write_head = UInt32(0)
+    s.free_head = UInt32(0)
+    s.free_tail = UInt32(0)
+    s.target_queue_length = MIN_FREE_QUEUE_LEN
     s
 end
 
@@ -302,95 +305,104 @@ function Base.copy(s::GenIDVector)
         copy(s.idx_gens),
         s.gens_len,
         s.n_active,
-        copy(s.free_queue),
-        s.free_read_head,
-        s.free_write_head,
+        s.free_head,
+        s.free_tail,
+        s.target_queue_length,
     )
 end
 
 function _assert_invariants_id2idx!(s::GenIDVector)
+    @assert length(s.idx_gens) ≤ typemax(UInt32)
     @assert s.gens_len ≤ length(s.idx_gens)
     @assert s.n_active ≤ s.gens_len
-    n_inactive = count(isodd ∘ last, view(s.idx_gens, 1:s.gens_len))
-    @assert n_inactive == s.gens_len - s.n_active
-    # The free queue should always have at least one free spot unless it's not allocated yet
-    @assert length(s.free_queue) == 0 || length(s.free_queue) > n_inactive
-    @assert length(s.idx_gens) ≤ typemax(UInt32)
+    @assert s.target_queue_length > 0
+    @assert s.target_queue_length < typemax(Int32)
+    @assert Int64(s.target_queue_length) + Int64(s.n_active) ≤ typemax(UInt32)
+    n_inactive = count(isodd ∘ last, s.idx_gens)
+    @assert n_inactive == length(s.idx_gens) - s.n_active
+    # Check the free queue
     if iszero(n_inactive)
-        @assert s.free_read_head == s.free_write_head
-    else
-        @assert s.free_read_head + 1 ∈ eachindex(s.free_queue)
-        @assert s.free_write_head + 1 ∈ eachindex(s.free_queue)
-        i = s.free_read_head
-        free_write_head = s.free_write_head
-        n = 0
-        free_set = Set{UInt32}()
-        while i != free_write_head
-            n += 1
-            f = s.free_queue[1 + i]
-            @assert isodd(last(s.idx_gens[f]))
-            push!(free_set, f)
-            i += UInt32(1)
-            if i ≥ length(s.free_queue)
-                i = UInt32(0)
-            end
-        end
-        @assert n == n_inactive
-        @assert length(free_set) == n
+        @assert iszero(s.free_head)
+        @assert iszero(s.free_tail)
     end
+    visited = zeros(Bool, length(s.idx_gens))
+    p = Int(s.free_head)
+    n = 0
+    while !iszero(p)
+        @assert !visited[p]
+        visited[p] = true
+        n += 1
+        next_p, gen = s.idx_gens[p]
+        if p ≤ s.gens_len
+            @assert isodd(gen)
+        else
+            @assert gen == typemax(UInt32)
+        end
+        # Unlike GenNoWrap gen is allowed to be typemax(UInt32)
+        if iszero(next_p)
+            @assert s.free_tail == p
+        end
+        p = next_p
+    end
+    @assert n == n_inactive
     nothing
 end
 
 function next_id(s::GenIDVector)::Int64
     n_active = s.n_active
-    gens_len = s.gens_len
-    if gens_len - n_active ≤ MIN_FREE_QUEUE_LEN
-        # No free slots make a new one with implicit generation 0
-        if gens_len == typemax(UInt32)
-            throw(OverflowError("next_id would wraparound"))
-        end
-        Int64(gens_len + UInt32(1))
+    if n_active ≥ typemax(UInt32) - s.target_queue_length
+        throw(OverflowError("next_id would wraparound"))
+    end
+    if iszero(s.free_head)
+        Int64(length(s.idx_gens) + 1)
     else
-        # Pick a slot off the free queue
-        f = s.free_queue[1 + s.free_read_head]
-        new_gen = last(s.idx_gens[f]) + UInt32(1)
-        Int64(new_gen)<<32 | Int64(f)
+        new_gen = last(s.idx_gens[s.free_head]) + UInt32(1)
+        Int64(new_gen)<<32 | Int64(s.free_head)
+    end
+end
+
+function _grow_free_queue!(s::GenIDVector, n::Int64)
+    n = n + s.target_queue_length
+    old_mem = s.idx_gens
+    old_len = length(old_mem)
+    if n > old_len
+        new_size = Int(min(overallocation(n), Int64(typemax(UInt32))))
+        new_mem = typeof(old_mem)(undef, new_size)
+        unsafe_copyto!(new_mem, 1, old_mem, 1, old_len)
+        # fill out the free queue
+        if !iszero(s.free_tail)
+            new_mem[s.free_tail] = (UInt32(old_len + 1), last(new_mem[s.free_tail]))
+        end
+        for i in old_len + 1 : new_size - 1
+            new_mem[i] = (UInt32(i+1), typemax(UInt32))
+        end
+        new_mem[end] = (UInt32(0), typemax(UInt32))
+        if iszero(s.free_head)
+            s.free_head = UInt32(old_len + 1)
+        end
+        s.free_tail = UInt32(new_size)
+        s.idx_gens = new_mem
     end
 end
 
 function alloc_id!(s::GenIDVector)::Int64
     n_active = s.n_active
-    if n_active == typemax(UInt32)
+    if s.target_queue_length ≥ typemax(UInt32) - n_active
         throw(OverflowError("next_id would wraparound"))
     end
     idx = n_active + UInt32(1)
     _grow_field!(s, Int64(idx), :ids)
-    gens_len = s.gens_len
-    id = if gens_len - n_active ≤ MIN_FREE_QUEUE_LEN
-        # No free slots make a new one with generation 0
-        if gens_len == typemax(UInt32)
-            throw(OverflowError("next_id would wraparound"))
-        end
-        _grow_field!(s, Int64(gens_len + UInt32(1)), :idx_gens, Int64(typemax(UInt32)))
-        s.gens_len += UInt32(1)
-        s.idx_gens[s.gens_len] = (idx, UInt32(0))
-        s.n_active += UInt32(1)
-        Int64(s.gens_len)
-    else
-        # Pick a slot off the free queue
-        i = s.free_read_head
-        f = s.free_queue[1 + i]
-        i += UInt32(1)
-        if i ≥ length(s.free_queue)
-            i = UInt32(0)
-        end
-        s.free_read_head = i
-        new_gen = last(s.idx_gens[f]) + UInt32(1)
-        s.idx_gens[f] = (idx, new_gen)
-        s.n_active += UInt32(1)
-        Int64(new_gen)<<32 | Int64(f)
+    _grow_free_queue!(s, Int64(idx))
+    if s.free_head > s.gens_len
+        s.gens_len = s.free_head
     end
+    next_p, old_gen = s.idx_gens[s.free_head]
+    new_gen = old_gen + UInt32(1)
+    id = Int64(new_gen)<<32 | Int64(s.free_head)
+    s.idx_gens[s.free_head] = (idx, new_gen)
     s.ids[idx] = id
+    s.n_active += UInt32(1)
+    s.free_head = next_p
     id
 end
 
@@ -401,21 +413,9 @@ function _pop_id2idx!(s::GenIDVector, id::Int64)::Int
     gidx = id%UInt32
     gen = (id>>>32)%UInt32
     idx, storedgen = s.idx_gens[gidx]
-    # Do the memory allocations first to avoid corrupting s in case that errors
-    n_inactive = s.gens_len - s.n_active
-    _grow_free_queue!(s, max(n_inactive + Int64(1), MIN_FREE_QUEUE_LEN))
-    # We made it past the scary allocation parts!
-    # next push gidx to the free queue
-    i = s.free_write_head
-    s.free_queue[1 + i] = gidx
-    i += UInt32(1)
-    if i ≥ length(s.free_queue)
-        i = UInt32(0)
-    end
-    s.free_write_head = i
-    # finally update gens
+    s.idx_gens[s.free_tail] = (gidx, last(s.idx_gens[s.free_tail]))
+    s.free_tail = gidx
     s.idx_gens[gidx] = (UInt32(0), gen + UInt32(1))
-    @assert !iszero(s.n_active)
     s.n_active -= UInt32(1)
     idx
 end
@@ -464,18 +464,12 @@ end
 
 function Base.empty!(s::GenIDVector)::GenIDVector
     n = s.gens_len
-    _grow_free_queue!(s, Int64(n))
     for gidx in UInt32(1):n
         idx, gen = s.idx_gens[gidx]
         if iseven(gen)
-            i = s.free_write_head
-            s.free_queue[1 + i] = idx
-            i += UInt32(1)
-            if i ≥ length(s.free_queue)
-                i = UInt32(0)
-            end
-            s.free_write_head = i
-            s.idx_gens[idx] = (UInt32(0), gen + UInt32(1))
+            s.idx_gens[s.free_tail] = (gidx, last(s.idx_gens[s.free_tail]))
+            s.free_tail = gidx
+            s.idx_gens[gidx] = (UInt32(0), gen + UInt32(1))
         end
     end
     s.n_active = UInt32(0)
@@ -483,9 +477,10 @@ function Base.empty!(s::GenIDVector)::GenIDVector
 end
 
 function _sizehint_id2idx!(s::GenIDVector, n; kwargs...)
-    _n = clamp(n, 0, Int64(typemax(UInt32)) - MIN_FREE_QUEUE_LEN)%Int64
-    _n = _n + MIN_FREE_QUEUE_LEN
-    _grow_field!(s, _n, :idx_gens, Int64(typemax(UInt32)))
+    if n > typemax(UInt32) - s.target_queue_length
+        throw(OverflowError("next_id would wraparound"))
+    end
+    _n = max(n, 0)%Int64
     _grow_free_queue!(s, _n)
     nothing
 end

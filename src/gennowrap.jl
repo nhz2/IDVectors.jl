@@ -288,7 +288,7 @@ function _assert_invariants_id2idx!(s::GenNoWrapIDVector)
         end
     end
     @assert s.gens_len == n_dead + n_free + s.n_active
-    # Finally check the free list
+    # Finally check the free stack
     visited = zeros(Bool, s.gens_len)
     p = Int(s.free_head)
     n = 0
@@ -431,7 +431,10 @@ function Base.empty!(s::GenNoWrapIDVector)::GenNoWrapIDVector
 end
 
 function _sizehint_id2idx!(s::GenNoWrapIDVector, n; kwargs...)
-    _n = clamp(n, 0, Int64(typemax(UInt32)))%Int64
+    if n > typemax(UInt32)
+        throw(OverflowError("next_id would wraparound"))
+    end
+    _n = max(n, 0)%Int64
     _grow_field!(s, _n, :idx_gens, Int64(typemax(UInt32)))
     nothing
 end

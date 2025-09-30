@@ -151,7 +151,7 @@ end
 
 
 """
-
+Fixes the limitations of GenIDVector at the cost of 4-8 times the memory footprint.
 """
 mutable struct DynIDVector <: IDVector
     ids::Memory{Int64}
