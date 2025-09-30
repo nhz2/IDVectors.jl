@@ -258,7 +258,7 @@ function swap_deleteat!(a::AbstractVector, inds::AbstractVector{Bool})
     end
     a
 end
-function swap_deleteat!(a::AbstractVector, inds::AbstractVector)
+function swap_deleteat!(a::AbstractVector, inds::Union{AbstractVector, Tuple})
     start = 1
     stop = Int(length(inds))::Int
     lastidx = -1

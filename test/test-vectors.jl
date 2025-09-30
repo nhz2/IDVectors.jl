@@ -2,6 +2,7 @@ using IDVectors
 using IDVectors: assert_invariants, reset!
 using Test
 
+# Generic tests
 @testset "$idvector" for idvector in [
         IncIDVector,
         GenIDVector,
@@ -14,18 +15,27 @@ using Test
     @test id1 != 0
     @test isempty(s)
     @test length(s) == 0
-    @test alloc_id!(s) == id1
+    @test alloc_id!(s) === id1
     assert_invariants(s)
     @test !isempty(s)
     @test length(s) == 1
+    @test id1 ∈ s
+    @test s[1] == id1
+    @test id2idx(s, id1) == 1
+    @test collect(s) == [id1]
     id2 = next_id(s)
-    @test alloc_id!(s) == id2
+    @test alloc_id!(s) === id2
     assert_invariants(s)
     @test id1 != id2
+    @test id1 ∈ s
+    @test id2 ∈ s
+    @test s == [id1, id2]
+    @test length(s) == 2
     id3 = next_id(s)
-    @test alloc_id!(s) == id3
+    @test alloc_id!(s) === id3
     assert_invariants(s)
     @test id1 != id3
+    @test s == [id1, id2, id3]
 
     q = copy(s)
     @test reset!(q) === q
@@ -54,9 +64,12 @@ using Test
         assert_invariants(v)
         @test v == [id3, id2]
         @test_throws KeyError free_id!(v, id1)
+        @test_throws KeyError free_id!(v, Int64(999999))
         @test_throws KeyError free_id!(v, Int64(0))
+        assert_invariants(s)
         @test free_id!(v, id2) === 2
         @test free_id!(v, id3) === 1
+        assert_invariants(s)
 
         v = copy(s)
         @test free_id!(v, id3) === 3
@@ -236,6 +249,13 @@ using Test
             assert_invariants(v)
             @test v == [ids[4], ids[2]]  # elements at positions 2 and 4 remain
             @test v == swap_deleteat!(copy(ids), [1,3,5])
+
+            # tuples should work as well
+            v = copy(init)
+            @test swap_deleteat!(v, (1, 3, 5)) === v
+            assert_invariants(v)
+            @test v == [ids[4], ids[2]]  # elements at positions 2 and 4 remain
+            @test v == swap_deleteat!(copy(ids), (1,3,5))
             
             v = copy(init)
             @test swap_deleteat!(v, 1:3) === v
@@ -439,5 +459,204 @@ using Test
             ids = [alloc_id!(v) for i in 1:5]  # ids[1] through ids[5]
             assert_invariants(v)
         end
+
+        # After sizehint no allocations should be needed if the hinted capacity is never exceeded
+        v = idvector()
+        n_hint = 1000
+        sizehint!(v, n_hint)
+        assert_invariants(v)
+        init_mems = filter(x -> x isa Memory, [getfield(v, k) for k in fieldnames(typeof(v))])
+        for j in 1:10
+            for i in 1:n_hint
+                alloc_id!(v)
+            end
+            empty!(v)
+            for i in 1:n_hint
+                alloc_id!(v)
+            end
+            for i in 1:10000
+                free_id!(v, first(v))
+                alloc_id!(v)
+            end
+            for i in 1:10000
+                free_id!(v, first(v))
+                free_id!(v, last(v))
+                alloc_id!(v)
+                free_id!(v, first(v))
+                alloc_id!(v)
+                alloc_id!(v)
+            end
+            empty!(v)
+        end
+        final_mems = filter(x -> x isa Memory, [getfield(v, k) for k in fieldnames(typeof(v))])
+        @test all(final_mems .=== init_mems)
+    end
+
+    @testset "edgecases" begin
+        # Go between n and n+1 ids
+        for n in [0, 1, 2, 100000]
+            s = idvector()
+            ids = Set{Int64}([alloc_id!(s) for i in 1:n])
+            for i in 1:5
+                id = next_id(s)
+                @test id ∉ ids
+                push!(ids, id)
+                @test alloc_id!(s) === id
+                assert_invariants(s)
+                @test free_id!(s, id) == n+1
+                assert_invariants(s)
+                @test id ∉ s
+            end
+        end
+
+        # empty! an empty
+        s = idvector()
+        id1 = next_id(s)
+        empty!(s)
+        assert_invariants(s)
+        @test next_id(s) === id1
+        empty!(s)
+        assert_invariants(s)
+        @test next_id(s) === id1
+        @test alloc_id!(s) === id1
+    end
+end
+
+# Specific tests for each type
+@testset "Inc specific" begin
+    # wrap around is allowed but should not be zero or violate uniqueness
+    s = IncIDVector()
+    s.next_id = -2
+    assert_invariants(s)
+    @test next_id(s) == -2
+    @test alloc_id!(s) == -2
+    assert_invariants(s)
+    @test next_id(s) == -1
+    @test alloc_id!(s) == -1
+    assert_invariants(s)
+    @test next_id(s) == 1
+    @test alloc_id!(s) == 1
+    assert_invariants(s)
+
+    s = IncIDVector()
+    s.next_id = -2
+    s.id2idx[Int64(1)] = 1
+    s.ids = Memory{Int64}(undef, 1)
+    s.ids[1] = Int64(1)
+    assert_invariants(s)
+    @test next_id(s) == -2
+    @test alloc_id!(s) == -2
+    assert_invariants(s)
+    @test next_id(s) == -1
+    @test alloc_id!(s) == -1
+    assert_invariants(s)
+    # 1 is already used, so skip to 2
+    @test next_id(s) == 2
+    @test alloc_id!(s) == 2
+    assert_invariants(s)
+end
+@testset "Gen specific" begin
+    # Test generation-based ID structure
+    @testset "Generation-based ID structure" begin
+        s = GenIDVector()
+        id = alloc_id!(s)
+        
+        # Extract index and generation
+        index = id & 0xFFFFFFFF
+        generation = (id >>> 32) # 32 bits for generation
+        
+        @test index == 1
+        @test generation == 0
+        
+        # Free and verify we can't access it anymore
+        free_id!(s, id)
+        @test id ∉ s
+        
+        # The internal generation should now be odd (inactive)
+        @test isodd(last(s.idx_gens[index]))
+        assert_invariants(s)
+    end
+
+    # Test that overflow is handled appropriately
+    @testset "Overflow handling" begin
+        s = GenIDVector()
+        @test_throws OverflowError sizehint!(s, typemax(UInt32))
+        assert_invariants(s)
+
+        # Set up s with high generations to simulate gen overflow
+        s = GenIDVector()
+        sizehint!(s, 10)
+        n = length(s.idx_gens)
+        s.gens_len = n
+        for i in 1:n
+            s.idx_gens[i] = (UInt32(i+1), typemax(UInt32)-UInt32(2))
+        end
+        s.idx_gens[end] = (UInt32(0), typemax(UInt32)-UInt32(2))
+        s.free_head = 1
+        s.free_tail = n
+        assert_invariants(s)
+        for i in 1:n
+            @test alloc_id!(s) == (Int64(2)^32-2)<<32 | i
+            free_id!(s, (Int64(2)^32-2)<<32 | i)
+        end
+        assert_invariants(s)
+        for i in 1 : n - 1
+            @test alloc_id!(s) == i
+            free_id!(s, Int64(i))
+        end
+        assert_invariants(s)
+        @test alloc_id!(s) == n
+        assert_invariants(s)
+        empty!(s)
+        assert_invariants(s)
+    end
+end
+@testset "GenNoWrap specific" begin
+    s = GenNoWrapIDVector()
+
+    # Test that overflow is handled appropriately
+    @testset "Overflow handling" begin
+        s = GenNoWrapIDVector()
+        @test_throws OverflowError sizehint!(s, typemax(UInt32) + Int64(1))
+        assert_invariants(s)
+
+        # Set up s with high generations to simulate gen overflow
+        s = GenIDVector()
+        sizehint!(s, 10)
+        n = length(s.idx_gens)
+        s.gens_len = n
+        for i in 1:n
+            s.idx_gens[i] = (UInt32(i+1), typemax(UInt32)-UInt32(2))
+        end
+        s.idx_gens[end] = (UInt32(0), typemax(UInt32)-UInt32(2))
+        s.free_head = 1
+        assert_invariants(s)
+        @test alloc_id!(s) == (Int64(2)^32-2)<<32 | 1
+        assert_invariants(s)
+        free_id!(s, (Int64(2)^32-2)<<32 | 1)
+        assert_invariants(s)
+        @test alloc_id!(s) == (Int64(2)^32-2)<<32 | 2
+        assert_invariants(s)
+        free_id!(s, (Int64(2)^32-2)<<32 | 2)
+        assert_invariants(s)
+        @test alloc_id!(s) == (Int64(2)^32-2)<<32 | 3
+        assert_invariants(s)
+        empty!(s)
+        assert_invariants(s)
+    end
+end
+@testset "Dyn specific" begin
+    # Test that overflow is handled appropriately
+    @testset "Overflow handling" begin
+        s = DynIDVector()
+        s.next_id = -1
+        assert_invariants(s)
+        @test alloc_id!(s) == -1
+        assert_invariants(s)
+        # skips zero
+        @test alloc_id!(s) == Int64(2)
+        assert_invariants(s)
+        empty!(s)
+        assert_invariants(s)
     end
 end
