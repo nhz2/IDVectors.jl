@@ -6,10 +6,6 @@ export next_id,
     id2idx,
     swap_deleteat!,
     swap!,
-    IncIDSet,
-    GenIDSet,
-    GenNoWrapIDSet,
-    DynIDSet,
     IncIDVector,
     GenIDVector,
     GenNoWrapIDVector,
@@ -19,27 +15,7 @@ public reset!,
     assert_invariants
 
 """
-    abstract type IDSet end
-
-Used to allocate ids. ids are never zero.
-Subtypes should implement:
-- `next_id(s::IDSet)::Int64`
-- `alloc_id!(s::IDSet)::Int64`
-- `free_id!(s::IDSet, id::Int64) -> s`
-- `reset!(s::IDSet) -> s`
-- `assert_invariants(s::IDSet)::Nothing`
-- `Base.in(id::Int64, s::IDSet)::Bool`
-- `Base.length`
-- `Base.iterate`
-- `Base.empty!`
-- `Base.sizehint!`
-"""
-abstract type IDSet end
-
-Base.eltype(::Type{<:IDSet}) = Int64
-
-"""
-    next_id(s::Union{IDSet, IDVector})::Int64
+    next_id(s::IDVector)::Int64
 
 Return the next id that would be allocated if `alloc_id!`
 was called instead. This id is not in `s`, though due to
@@ -48,30 +24,29 @@ wrap around it may have been allocated and freed in the past.
 function next_id end
 
 """
-    alloc_id!(s::Union{IDSet, IDVector})::Int64
+    alloc_id!(s::IDVector)::Int64
 
-Return the allocated id, this key is guaranteed to not
+Return the allocated id, this key is guaranteed to not be zero.
 """
 function alloc_id! end
 
 """
-    free_id!(s::IDSet, id::Int64) -> nothing
     free_id!(s::IDVector, id::Int64) -> idx
 
-Remove `id` from `s` and return its previous index if `s isa IDVector`.
+Remove `id` from `s` and return its previous index.
 Throw a `KeyError` if `id` isn't in `s`.
 """
 function free_id! end
 
 """
-    reset!(s::Union{IDSet, IDVector}) -> s
+    reset!(s::IDVector) -> s
 
 Reset `s`, emptying it and also removing memory of past allocated ids.
 """
 function reset! end
 
 """
-    assert_invariants(s::Union{IDSet, IDVector})::Nothing
+    assert_invariants(s::IDVector)::Nothing
 
 Assert that `s` is in a valid state.
 Useful for testing or hacking at the data structure.
