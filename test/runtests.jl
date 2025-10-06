@@ -40,6 +40,40 @@ function _assert_invariants_id2idx!(s::Gen)
     @assert n == n_inactive
     nothing
 end
+function _assert_invariants_id2idx!(s::GenNoWrap)
+    @assert length(s.idx_gens) ≤ typemax(UInt32)
+    @assert s.gens_len ≤ length(s.idx_gens)
+    @assert s.n_active ≤ s.gens_len
+    n_free = 0
+    n_dead = 0
+    for (gidx, (idx, gen)) in enumerate(view(s.idx_gens, 1:s.gens_len))
+        if isodd(gen)
+            if gen == typemax(UInt32)
+                n_dead += 1
+                # canonical dead slot
+                @assert idx == typemax(UInt32)
+            else
+                n_free += 1
+            end
+        end
+    end
+    @assert s.gens_len == n_dead + n_free + s.n_active
+    # Finally check the free stack
+    visited = zeros(Bool, s.gens_len)
+    p = Int(s.free_head)
+    n = 0
+    while !iszero(p)
+        @assert p ≤ s.gens_len
+        @assert !visited[p]
+        visited[p] = true
+        n += 1
+        p, gen = s.idx_gens[p]
+        @assert isodd(gen)
+        @assert gen != typemax(UInt32)
+    end
+    @assert n == n_free
+    nothing
+end
 
 #=
 Don't add your tests to runtests.jl. Instead, create files named
