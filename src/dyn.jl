@@ -42,21 +42,6 @@ function Base.copy(s::Dyn)
     )
 end
 
-function _assert_invariants_id2idx!(s::Dyn)
-    @assert s.n_active ≤ length(s.idx_slots)
-    @assert s.n_active == count(!iszero ∘ last, s.idx_slots)
-    @assert length(s.idx_slots) - 1 == s.mask
-    @assert ispow2(length(s.idx_slots))
-    for (sidx, (idx, slot)) in enumerate(s.idx_slots)
-        if !iszero(slot)
-            @assert slot & s.mask == sidx - 1
-        end
-    end
-    @assert !iszero(s.next_id)
-    @assert iszero(last(s.idx_slots[begin + (s.next_id & s.mask)]))
-    nothing
-end
-
 function next_id(s::Dyn)::Int64
     s.next_id
 end
