@@ -24,10 +24,6 @@ function Base.copy(s::Inc)
     Inc(copy(s.ids), copy(s.id2idx), s.next_id)
 end
 
-function _assert_invariants_id2idx!(s::Inc)
-    nothing
-end
-
 function next_id(s::Inc)::Int64
     s.next_id
 end
