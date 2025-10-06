@@ -17,7 +17,7 @@ function overallocation(maxsize::Int64)::Int64
     return max(maxsize, newsize)
 end
 
-@inline function _grow_fill_field!(s, n::Int64, field::Symbol, maxsize::Int64= typemax(Int64))
+@inline function _grow_field!(s, n::Int64, field::Symbol, maxsize::Int64= typemax(Int64))
     old_mem = getfield(s, field)
     if n ≤ length(old_mem)
         return
