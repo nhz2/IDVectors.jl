@@ -88,6 +88,9 @@ function _assert_invariants_id2idx!(s::GenNoWrap)
     @assert n == n_free
     nothing
 end
+function _assert_invariants_id2idx!(s::Inc)
+    nothing
+end
 
 #=
 Don't add your tests to runtests.jl. Instead, create files named
