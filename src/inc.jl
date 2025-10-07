@@ -34,7 +34,7 @@ end
 
 function alloc_id!(s::Inc)::Int64
     idx = length(s) + 1
-    _grow_field!(s, Int64(idx), :ids)
+    _grow_field!(s, idx%Int64, :ids)
     id = s.next_id
     s.id2idx[id] = idx
     next_id = id
