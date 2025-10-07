@@ -86,11 +86,11 @@ function next_id(s::GenNoWrap)::Int64
         if gens_len == typemax(UInt32)
             throw(OverflowError("next_id would wraparound"))
         end
-        Int64(gens_len + UInt32(1))
+        (gens_len + UInt32(1))%Int64
     else
         # Pick a slot off the free queue
         @inbounds new_gen = last(s.idx_gens[free_head]) + UInt32(1)
-        Int64(new_gen)<<32 | Int64(free_head)
+        (new_gen%Int64)<<32 | (free_head%Int64)
     end
 end
 
@@ -100,7 +100,7 @@ function alloc_id!(s::GenNoWrap)::Int64
         throw(OverflowError("next_id would wraparound"))
     end
     idx = n_active + UInt32(1)
-    _grow_field!(s, Int64(idx), :ids)
+    _grow_field!(s, idx%Int64, :ids)
     gens_len = s.gens_len
     free_head = s.free_head
     id = if iszero(free_head)
@@ -108,7 +108,7 @@ function alloc_id!(s::GenNoWrap)::Int64
         if gens_len == typemax(UInt32)
             throw(OverflowError("next_id would wraparound"))
         end
-        _grow_field!(s, Int64(gens_len + UInt32(1)), :idx_gens, Int64(typemax(UInt32)))
+        _grow_field!(s, (gens_len + UInt32(1))%Int64, :idx_gens, Int64(typemax(UInt32)))
         s.gens_len += UInt32(1)
         @inbounds s.idx_gens[s.gens_len] = (idx, UInt32(0))
         s.n_active += UInt32(1)
@@ -120,7 +120,7 @@ function alloc_id!(s::GenNoWrap)::Int64
         @inbounds s.idx_gens[free_head] = (idx, new_gen)
         s.free_head = next_free_head
         s.n_active += UInt32(1)
-        Int64(new_gen)<<32 | Int64(free_head)
+        (new_gen%Int64)<<32 | (free_head%Int64)
     end
     @inbounds s.ids[idx] = id
     id

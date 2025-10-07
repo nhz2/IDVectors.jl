@@ -69,7 +69,7 @@ function _grow_idx_slots(s::Dyn, n::Int64)
         mask = s.mask
         new_len = nextpow(2, n)*2
         @assert ispow2(new_len)
-        new_mask = Int64(new_len) - 1
+        new_mask = new_len%Int64 - 1
         new_idx_slots = Memory{NTuple{2, Int64}}(undef, new_len)
         fill!(new_idx_slots, (Int64(0), Int64(0)))
         # now copy in the ids
@@ -87,7 +87,7 @@ end
 
 function alloc_id!(s::Dyn)::Int64
     idx = s.n_active + 1
-    _grow_field!(s, Int64(idx), :ids)
+    _grow_field!(s, idx%Int64, :ids)
     # If free slots drops below 50% expand slots
     _grow_idx_slots(s, idx)
     id = s.next_id
@@ -147,7 +147,7 @@ end
 
 function Base.empty!(s::Dyn)::Dyn
     fill!(s.idx_slots, (Int64(0), Int64(0)))
-    s.n_active = UInt32(0)
+    s.n_active = Int64(0)
     s
 end
 
