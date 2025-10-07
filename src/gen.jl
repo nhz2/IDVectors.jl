@@ -99,10 +99,10 @@ function next_id(s::Gen)::Int64
         throw(OverflowError("next_id would wraparound"))
     end
     if iszero(s.free_head)
-        Int64(length(s.idx_gens) + 1)
+        (length(s.idx_gens) + 1)%Int64
     else
         @inbounds new_gen = last(s.idx_gens[s.free_head]) + UInt32(1)
-        Int64(new_gen)<<32 | Int64(s.free_head)
+        (new_gen%Int64)<<32 | (s.free_head%Int64)
     end
 end
 
@@ -136,14 +136,14 @@ function alloc_id!(s::Gen)::Int64
         throw(OverflowError("next_id would wraparound"))
     end
     idx = n_active + UInt32(1)
-    _grow_field!(s, Int64(idx), :ids)
-    _grow_free_queue!(s, Int64(idx))
+    _grow_field!(s, idx%Int64, :ids)
+    _grow_free_queue!(s, idx%Int64)
     if s.free_head > s.gens_len
         s.gens_len = s.free_head
     end
     @inbounds next_p, old_gen = s.idx_gens[s.free_head]
     new_gen = old_gen + UInt32(1)
-    id = Int64(new_gen)<<32 | Int64(s.free_head)
+    id = (new_gen%Int64)<<32 | (s.free_head%Int64)
     @inbounds s.idx_gens[s.free_head] = (idx, new_gen)
     @inbounds s.ids[idx] = id
     s.n_active += UInt32(1)
