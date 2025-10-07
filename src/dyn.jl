@@ -147,7 +147,7 @@ end
 
 function Base.empty!(s::Dyn)::Dyn
     fill!(s.idx_slots, (Int64(0), Int64(0)))
-    s.n_active = UInt32(0)
+    s.n_active = Int64(0)
     s
 end
 
